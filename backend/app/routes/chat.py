@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from app.core.agent_service import route_query, call_gemini_explain
 from app.core.self_correcting_agent import run_with_correction
-from app.core.schema_indexer import get_schema_context
+from app.core.schema_indexer import schema_indexer
 from app.core.visualizer import generate_plotly_config
 from app.core.cache import get_cached, set_cached
 
@@ -49,21 +49,21 @@ async def stream_response(req: ChatRequest) -> AsyncGenerator[str, None]:
             yield emit("done", {})
             return
 
-        # ── 2. Always fetch schema context first ──────────────────────
-        schema_context = await get_schema_context(req.message)
-
-        # ── 3. Security + intent classification + LLM routing ────────
-        routed = await route_query(req.message, schema_context, req.history)
+        # ── 2. Security + intent classification + LLM routing ────────
+        # route_query now handles semantic schema retrieval internally via LlamaIndex
+        routed = await route_query(req.message, req.history)
         yield emit("intent", {"intent": routed["intent"]})
 
-        # ── 4. Conversational path (Gemini) ───────────────────────────
+        # ── 3. Conversational path (Gemini) ───────────────────────────
         if routed["intent"] == "chat":
             yield emit("explanation", {"text": routed.get("explanation", "")})
             yield emit("done", {})
             return
 
-        # ── 5. SQL path — use the already-fetched schema ──────────────
+        # ── 4. SQL path ───────────────────────────────────────────────
         sql = routed.get("sql", "")
+        # Get context for self-correction (fallback to full or relevant if needed)
+        schema_context = await schema_indexer.get_schema_context(req.message)
 
         yield emit("sql_generated", {"sql": sql})
 

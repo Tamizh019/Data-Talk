@@ -38,3 +38,4 @@ redis_data/
 
 # --- Misc ---
 *.log
+.env

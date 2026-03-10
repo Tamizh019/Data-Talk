@@ -1,24 +1,14 @@
-"""
-Embedder — BAAI/bge-large-en-v1.5 via HuggingFace (runs locally, zero cost)
-This is the embedding backbone used for both ingestion and query time.
-"""
-from functools import lru_cache
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+import logging
+from llama_index.embeddings.gemini import GeminiEmbedding
 from app.config import get_settings
 
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
-@lru_cache(maxsize=1)
-def get_embedder() -> HuggingFaceEmbedding:
-    """
-    Singleton pattern — embedder is loaded once and reused.
-    First call will download the model (~1.3GB). Subsequent calls are instant.
-    """
-    settings = get_settings()
-    print(f"[Embedder] Loading model: {settings.embedding_model}")
-    embedder = HuggingFaceEmbedding(
-        model_name=settings.embedding_model,
-        device=settings.embedding_device,
-        trust_remote_code=False,
+def get_embed_model() -> GeminiEmbedding:
+    """Initializes and returns the Gemini embedding model."""
+    logger.info(f"Initializing Gemini Embedding: {settings.embed_model}")
+    return GeminiEmbedding(
+        model_name=settings.embed_model,
+        api_key=settings.gemini_api_key
     )
-    print("[Embedder] Model ready ✓")
-    return embedder

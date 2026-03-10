@@ -10,14 +10,15 @@ sqlalchemy[asyncio]==2.0.38
 asyncpg==0.30.0                   # Async PostgreSQL driver
 
 # ── LLM APIs ──────────────────────────────────────────────────
-google-generativeai==0.8.4        # Gemini Pro
+google-generativeai>=0.5.4        # Gemini Pro (Must be compatible with LlamaIndex)
 httpx==0.28.1                     # Together AI (SQLCoder) via REST
 
-# ── LlamaIndex + Qdrant ───────────────────────────────────────
+# ── LlamaIndex + pgvector ─────────────────────────────────────
 llama-index-core==0.12.14
-llama-index-vector-stores-qdrant==0.4.3
-llama-index-embeddings-huggingface==0.4.0
-qdrant-client==1.13.2
+llama-index-vector-stores-postgres==0.4.0
+llama-index-embeddings-gemini>=0.3.0
+psycopg2-binary==2.9.10           # Required by LlamaIndex for Postgres
+pgvector==0.3.6                   # Python support for vector type
 
 # ── Embeddings ────────────────────────────────────────────────
 sentence-transformers==3.4.1

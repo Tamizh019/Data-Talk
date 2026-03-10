@@ -11,7 +11,7 @@ from app.config import get_settings
 _engine = None
 
 
-def _get_engine():
+def get_db_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
@@ -20,6 +20,7 @@ def _get_engine():
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
+            connect_args={"timeout": 2},
             # Enforce read-only at connection level for extra safety
             execution_options={"postgresql_readonly": True},
         )
@@ -39,7 +40,7 @@ async def execute_sql(sql: str) -> tuple[list[dict], list[str]]:
     if "LIMIT" not in upper_sql:
         sql = sql.rstrip(";") + f" LIMIT {settings.max_query_rows}"
 
-    engine = _get_engine()
+    engine = get_db_engine()
 
     try:
         async with engine.connect() as conn:

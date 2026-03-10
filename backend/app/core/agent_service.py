@@ -133,19 +133,21 @@ async def call_gemini_explain(question: str, rows: list, columns: list) -> str:
 # ── Main Router ───────────────────────────────────────────────────────
 async def route_query(
     user_query: str,
-    schema_context: str,
     history: list,
 ) -> dict:
     """
-    Routes the query to the appropriate LLM.
-    Returns: { intent, sql? }
+    Routes the query to the appropriate LLM after retrieving relevant schema context.
     """
+    from app.core.schema_indexer import schema_indexer
+    
     guard_prompt(user_query)          # Raises if injection detected
     intent_raw = await classify_intent(user_query)
     intent: Literal["sql", "chat"] = "sql" if "sql" in intent_raw.lower() else "chat"
     logger.info(f"[Intent] '{user_query[:50]}' → {intent}")
 
     if intent == "sql":
+        # RETRIEVAL STEP: Get only relevant schema chunks from pgvector
+        schema_context = await schema_indexer.get_schema_context(user_query)
         sql = await call_sql_generator(schema_context, user_query)
         return {"intent": "sql", "sql": sql}
     else:

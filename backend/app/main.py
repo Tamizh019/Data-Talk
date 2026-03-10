@@ -23,8 +23,8 @@ async def lifespan(app: FastAPI):
     """Runs on startup: index the DB schema into Qdrant."""
     logger.info("Data-Talk starting up...")
     try:
-        from app.core.schema_indexer import build_schema_index
-        await build_schema_index()
+        from app.core.schema_indexer import schema_indexer
+        await schema_indexer.build_schema_index()
         logger.info("Schema indexing complete ✓")
     except Exception as e:
         logger.warning(
@@ -58,8 +58,8 @@ app.include_router(chat_router, prefix="/api")
 @app.get("/api/schema/reindex", tags=["admin"])
 async def reindex_schema():
     """Manually trigger schema re-indexing (call after DB schema changes)."""
-    from app.core.schema_indexer import build_schema_index
-    await build_schema_index()
+    from app.core.schema_indexer import schema_indexer
+    await schema_indexer.build_schema_index()
     return {"status": "Schema re-indexed successfully"}
 
 

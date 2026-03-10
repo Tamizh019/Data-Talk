@@ -11,10 +11,10 @@ class Settings(BaseSettings):
     # --- Target PostgreSQL Database ---
     target_db_url: str = "postgresql+asyncpg://datatalk:datatalk_secret@localhost:5432/enterprise_data"
 
-    # --- Qdrant (Schema vector store) ---
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
-    qdrant_collection: str = "db_schema"
+    # --- Vector Store (LlamaIndex + pgvector) ---
+    use_pgvector: bool = True
+    embed_model: str = "models/text-embedding-004"
+    pgvector_collection: str = "data_talk_vectors"
 
     # --- Redis ---
     redis_url: str = "redis://localhost:6379/0"

@@ -63,12 +63,13 @@ async def run_with_correction(
 
             # 3. Build a correction prompt and ask Gemini to fix it
             correction_prompt = (
-                f"{original_question}\n\n"
+                f"Original Question: {original_question}\n\n"
                 f"[CORRECTION NEEDED]\n"
                 f"The previous SQL query failed:\n"
                 f"SQL: {current_sql}\n"
-                f"Error: {error_message}\n"
-                f"Please write a corrected SQL query that avoids this error."
+                f"Error: {error_message}\n\n"
+                f"Please write a corrected PostgreSQL SQL query that avoids this error. "
+                f"Only output the raw SQL query."
             )
             logger.info(f"[Agent] Asking Gemini to self-correct...")
             current_sql = await call_sql_generator(schema_context, correction_prompt)
