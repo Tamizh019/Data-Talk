@@ -1,0 +1,36 @@
+# --- Python (Backend) ---
+backend/venv/
+backend/.env
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/data/*.pdf
+backend/data/*.txt
+!backend/data/README.txt
+
+# --- Node.js (Frontend) ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# --- OS / IDE ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Docker ---
+# If you want to keep data inside docker volume but not in git
+# we usually ignore the host-mounted storage if it's local
+qdrant_storage/
