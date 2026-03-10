@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Geist } from "next/font/google";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
 const inter = Inter({
   subsets: ["latin"],
@@ -9,9 +12,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "RAG Chatbot — LlamaIndex + Groq",
+  title: "Data-Talk | Autonomous Database Agent",
   description:
-    "Production-grade RAG chatbot. Upload PDFs and chat with them using LlamaIndex, Qdrant, and Groq.",
+    "Production-grade SQL generation agent. Connect your database, ask questions, and visualize results automatically.",
 };
 
 export default function RootLayout({
@@ -20,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} antialiased`}>
-      <body className="font-[var(--font-inter)] bg-[#09090b] text-[#fafafa]">
+    <html lang="en" className={cn("dark antialiased", inter.variable, "font-sans", geist.variable)}>
+      <body className="font-[var(--font-inter)] bg-background text-foreground">
         {children}
       </body>
     </html>

@@ -4,29 +4,25 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # --- Groq LLM ---
-    groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    # --- LLM — Google Gemini (SQL generation + Conversation) ---
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.1-pro-preview"
 
-    # --- Qdrant Vector DB ---
+    # --- Target PostgreSQL Database ---
+    target_db_url: str = "postgresql+asyncpg://datatalk:datatalk_secret@localhost:5432/enterprise_data"
+
+    # --- Qdrant (Schema vector store) ---
     qdrant_host: str = "localhost"
     qdrant_port: int = 6333
-    qdrant_collection: str = "rag_knowledge_base"
+    qdrant_collection: str = "db_schema"
 
-    # --- Embedding ---
-    embedding_model: str = "BAAI/bge-large-en-v1.5"
-    embedding_device: str = "cpu"  # change to "cuda" if GPU available
+    # --- Redis ---
+    redis_url: str = "redis://localhost:6379/0"
+    cache_ttl: int = 3600  # 1 hour
 
-    # --- Chunking ---
-    chunk_size: int = 512
-    chunk_overlap: int = 64
-
-    # --- Retrieval ---
-    top_k_results: int = 5
-    similarity_threshold: float = 0.4
-
-    # --- Storage ---
-    data_dir: str = "data"
+    # --- Security ---
+    max_query_rows: int = 1000
+    allowed_sql_prefixes: str = "SELECT,WITH" 
 
     # --- CORS ---
     frontend_url: str = "http://localhost:3000"

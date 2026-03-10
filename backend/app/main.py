@@ -1,77 +1,68 @@
 """
-FastAPI Application Entry Point
+Data-Talk FastAPI Application Entry Point
 """
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import logging
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from app.config import get_settings
-from app.routes import ingest, chat
-from app.core.embedder import get_embedder
-from app.core.vectorstore import get_qdrant_client
+from app.routes.chat import router as chat_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Startup: Pre-load embedder and verify Qdrant connection.
-    This ensures first request is fast (model already in memory).
-    """
-    settings = get_settings()
-    print("\n🚀 RAG Chatbot Backend Starting...")
-    print(f"   LLM     : Groq → {settings.groq_model}")
-    print(f"   Embedder: {settings.embedding_model}")
-    print(f"   VectorDB: Qdrant @ {settings.qdrant_host}:{settings.qdrant_port}")
-
-    # Pre-warm embedder (downloads model on first run ~1.3GB)
-    print("\n[Startup] Loading embedding model...")
-    get_embedder()
-
-    # Verify Qdrant connection
-    print("[Startup] Connecting to Qdrant...")
-    get_qdrant_client()
-
-    print("\n✅ Backend ready! All systems online.\n")
+    """Runs on startup: index the DB schema into Qdrant."""
+    logger.info("Data-Talk starting up...")
+    try:
+        from app.core.schema_indexer import build_schema_index
+        await build_schema_index()
+        logger.info("Schema indexing complete ✓")
+    except Exception as e:
+        logger.warning(
+            f"Schema indexing failed (DB may not be connected yet): {e}\n"
+            "Run POST /api/schema/reindex manually once DB is ready."
+        )
     yield
-    print("\n👋 Backend shutting down.")
+    logger.info("Data-Talk shutting down.")
 
 
-def create_app() -> FastAPI:
-    settings = get_settings()
+app = FastAPI(
+    title="Data-Talk API",
+    description="NL-to-SQL enterprise chatbot with Hybrid LLM routing",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
-    app = FastAPI(
-        title="RAG Chatbot API",
-        description="Production-grade RAG chatbot — LlamaIndex + Qdrant + Groq",
-        version="1.0.0",
-        lifespan=lifespan,
-    )
+# ── CORS ──────────────────────────────────────────────────────────────
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.frontend_url, "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # CORS for Next.js frontend
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[settings.frontend_url, "http://localhost:3000"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    # Register routers
-    app.include_router(ingest.router)
-    app.include_router(chat.router)
-
-    @app.get("/")
-    async def root():
-        return {
-            "status": "online",
-            "message": "RAG Chatbot API is running",
-            "docs": "/docs",
-        }
-
-    @app.get("/health")
-    async def health():
-        return {"status": "healthy"}
-
-    return app
+# ── Routes ────────────────────────────────────────────────────────────
+app.include_router(chat_router, prefix="/api")
 
 
-app = create_app()
+@app.get("/api/schema/reindex", tags=["admin"])
+async def reindex_schema():
+    """Manually trigger schema re-indexing (call after DB schema changes)."""
+    from app.core.schema_indexer import build_schema_index
+    await build_schema_index()
+    return {"status": "Schema re-indexed successfully"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "data-talk-api"}

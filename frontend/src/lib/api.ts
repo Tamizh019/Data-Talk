@@ -1,117 +1,92 @@
-/**
- * API client — all communication with the FastAPI backend.
- * Handles both regular requests and SSE streaming for chat.
- */
+// SSE streaming API client for Data-Talk
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface IngestResponse {
-    message: string;
-    details: {
-        source: string;
-        chunks: number;
-        status: string;
-    };
+export interface ChatMessage {
+    role: "user" | "assistant";
+    content?: string;
+    sql?: string;
+    plotlyConfig?: PlotlyConfig;
+    rowCount?: number;
+    attempts?: number;
+    isCached?: boolean;
+    isStreaming?: boolean;
+    error?: string;
 }
 
-export interface Source {
-    source: string;
-    score: number;
-    text_preview: string;
+export interface PlotlyConfig {
+    data: object[];
+    layout: object;
+    chart_type?: string;
 }
 
-export interface StreamChunk {
-    type: "token" | "sources" | "done" | "error";
-    data?: string | Source[];
+interface StreamCallbacks {
+    onIntent?: (intent: "sql" | "chat") => void;
+    onSql?: (sql: string) => void;
+    onResult?: (rows: object[], columns: string[], rowCount: number, attempts: number) => void;
+    onVisualization?: (config: PlotlyConfig) => void;
+    onExplanation?: (text: string) => void;
+    onCached?: (data: object) => void;
+    onError?: (message: string) => void;
+    onDone?: () => void;
 }
-
-// ─── Ingestion ────────────────────────────────────────────────────────────────
-
-export async function ingestPDF(file: File): Promise<IngestResponse> {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const res = await fetch(`${API_BASE}/api/ingest`, {
-        method: "POST",
-        body: formData,
-    });
-
-    if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.detail || "Ingestion failed");
-    }
-
-    return res.json();
-}
-
-// ─── Chat (SSE Streaming) ─────────────────────────────────────────────────────
 
 export async function streamChat(
     sessionId: string,
     message: string,
-    onToken: (token: string) => void,
-    onSources: (sources: Source[]) => void,
-    onDone: () => void,
-    onError: (error: string) => void
+    history: object[],
+    callbacks: StreamCallbacks
 ): Promise<void> {
-    const res = await fetch(`${API_BASE}/api/chat`, {
+    const res = await fetch("http://localhost:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, message }),
+        body: JSON.stringify({ session_id: sessionId, message, history }),
     });
 
-    if (!res.ok) {
-        const error = await res.json();
-        onError(error.detail || "Chat request failed");
+    if (!res.ok || !res.body) {
+        callbacks.onError?.(`HTTP ${res.status}: ${res.statusText}`);
         return;
     }
 
-    const reader = res.body?.getReader();
-    if (!reader) {
-        onError("No response body");
-        return;
-    }
-
+    const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n\n");
 
-        for (const line of lines) {
-            if (line.startsWith("data: ")) {
+            // Keep the last incomplete line in the buffer
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                if (!line.startsWith("data:")) continue;
+
                 try {
-                    const parsed: StreamChunk = JSON.parse(line.slice(6));
-                    if (parsed.type === "token") onToken(parsed.data as string);
-                    else if (parsed.type === "sources") onSources(parsed.data as Source[]);
-                    else if (parsed.type === "done") onDone();
-                    else if (parsed.type === "error") onError(parsed.data as string);
-                } catch {
-                    // Ignore malformed chunks
+                    const eventStr = line.slice(5).trim();
+                    if (!eventStr) continue;
+
+                    const event = JSON.parse(eventStr);
+                    switch (event.event) {
+                        case "intent": callbacks.onIntent?.(event.intent); break;
+                        case "sql_generated": callbacks.onSql?.(event.sql); break;
+                        case "query_result":
+                            callbacks.onResult?.(event.rows, event.columns, event.row_count, event.attempts);
+                            break;
+                        case "visualization": callbacks.onVisualization?.(event.plotly_config); break;
+                        case "explanation": callbacks.onExplanation?.(event.text); break;
+                        case "cached_result": callbacks.onCached?.(event); break;
+                        case "error": callbacks.onError?.(event.message); break;
+                        case "done": callbacks.onDone?.(); return;
+                    }
+                } catch (err) {
+                    console.error("Failed to parse stream event:", line, err);
                 }
             }
         }
-    }
-}
-
-// ─── Session Management ───────────────────────────────────────────────────────
-
-export async function clearSession(sessionId: string): Promise<void> {
-    await fetch(`${API_BASE}/api/chat/${sessionId}`, { method: "DELETE" });
-}
-
-export async function healthCheck(): Promise<boolean> {
-    try {
-        const res = await fetch(`${API_BASE}/health`);
-        return res.ok;
-    } catch {
-        return false;
+    } finally {
+        reader.releaseLock();
     }
 }
