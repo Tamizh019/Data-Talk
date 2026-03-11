@@ -35,10 +35,13 @@ export async function streamChat(
     history: object[],
     callbacks: StreamCallbacks
 ): Promise<void> {
+    const abortController = new AbortController();
+    
     const res = await fetch("http://localhost:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message, history }),
+        signal: abortController.signal,
     });
 
     if (!res.ok || !res.body) {
@@ -87,6 +90,23 @@ export async function streamChat(
             }
         }
     } finally {
+        // Essential to prevent browser connection pool exhaustion (max 6 connections)
         reader.releaseLock();
+        abortController.abort();
     }
 }
+
+/** Connect to a new database by providing a PostgreSQL connection URL. */
+export async function connectDatabase(dbUrl: string): Promise<{ status: string; message: string }> {
+    const res = await fetch("http://localhost:8000/api/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ db_url: dbUrl }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail ?? "Connection failed");
+    }
+    return res.json();
+}
+

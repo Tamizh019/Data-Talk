@@ -20,7 +20,7 @@ def get_db_engine():
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
-            connect_args={"timeout": 2},
+            connect_args={"command_timeout": 10},  # asyncpg uses command_timeout, not timeout
             # Enforce read-only at connection level for extra safety
             execution_options={"postgresql_readonly": True},
         )

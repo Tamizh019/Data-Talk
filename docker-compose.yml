@@ -1,18 +1,7 @@
 services:
-  # ── PostgreSQL with pgvector ────────────────────────────────────
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: rag_postgres
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-datatalk}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_secure_password}
-
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
+  # ── PostgreSQL: Using LOCAL installation (not Docker) ───────────
+  # The local PostgreSQL on port 5432 is used directly.
+  # Make sure pgvector extension is installed: CREATE EXTENSION IF NOT EXISTS vector;
 
   # ── Redis for Caching ───────────────────────────────────────────
   redis:
@@ -24,7 +13,7 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
-  # ── FastAPI Backend ─────────────────────────────────────────────
+  # ── FastAPI Backend (local dev only, optional) ──────────────────
   backend:
     build:
       context: ./backend
@@ -40,11 +29,9 @@ services:
       - ./backend:/app
       - hf_cache:/root/.cache/huggingface
     depends_on:
-      - db
       - redis
     restart: unless-stopped
 
 volumes:
-  postgres_data:
   redis_data:
   hf_cache:

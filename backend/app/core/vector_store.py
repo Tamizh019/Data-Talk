@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 from typing import Optional
 from llama_index.core import StorageContext
 from llama_index.vector_stores.postgres import PGVectorStore
@@ -33,7 +34,7 @@ def get_vector_store() -> PGVectorStore:
         password=conn_password,
         database=conn_database,
         table_name="data_talk_vectors",
-        embed_dim=768,  # Default for models/text-embedding-004
+        embed_dim=3072,  # gemini-embedding-exp-03-07 outputs 3072 dimensions
         perform_setup=True, # Automatically creates extension and table
         debug=False
     )

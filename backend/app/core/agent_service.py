@@ -1,6 +1,5 @@
 """
 Hybrid LLM Router:
-  - SQL Generation  → SQLCoder-7B via Together AI
   - Conversation    → Google Gemini Pro
 """
 import logging

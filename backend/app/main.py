@@ -58,9 +58,57 @@ app.include_router(chat_router, prefix="/api")
 @app.get("/api/schema/reindex", tags=["admin"])
 async def reindex_schema():
     """Manually trigger schema re-indexing (call after DB schema changes)."""
+    from fastapi import HTTPException
     from app.core.schema_indexer import schema_indexer
-    await schema_indexer.build_schema_index()
-    return {"status": "Schema re-indexed successfully"}
+    try:
+        await schema_indexer.build_schema_index()
+        return {"status": "Schema re-indexed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Re-indexing failed: {str(e)}")
+
+
+@app.post("/api/connect", tags=["admin"])
+async def connect_database(payload: dict):
+    """
+    Dynamically update the target database connection at runtime.
+    Accepts: { "db_url": "postgresql+asyncpg://user:pass@host:port/dbname" }
+    """
+    from fastapi import HTTPException
+    from app.core.schema_indexer import schema_indexer
+
+    db_url: str = payload.get("db_url", "").strip()
+    if not db_url:
+        raise HTTPException(status_code=400, detail="db_url is required")
+
+    # Accept plain postgres:// and convert to asyncpg driver
+    if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+
+    if not db_url.startswith("postgresql+asyncpg://"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid URL. Use format: postgresql://user:pass@host:port/dbname"
+        )
+
+    # Update runtime settings and env
+    settings.target_db_url = db_url
+    import os
+    os.environ["TARGET_DB_URL"] = db_url
+
+    # Reinitialize schema indexer with new DB
+    try:
+        # Force SQL executor to use new URL
+        from app.core import sql_executor as _sql_exec
+        _sql_exec._engine = None  # type: ignore[attr-defined]
+    except Exception:
+        pass
+
+    try:
+        await schema_indexer.build_schema_index()
+        return {"status": "connected", "message": "Database connected and schema indexed successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Connection failed: {str(e)}")
 
 
 @app.get("/health")

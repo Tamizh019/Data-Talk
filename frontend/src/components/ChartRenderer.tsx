@@ -81,7 +81,6 @@ const CHART_OPTIONS: ChartTypeOption[] = [
 export default function ChartRenderer({ config }: ChartRendererProps) {
     if (!config?.data?.length) return null;
 
-    // Detect the current chart type from the original backend config
     const originalType = (config.data[0] as { type?: string }).type ?? "bar";
     const [activeKey, setActiveKey] = useState<string>(
         originalType === "histogram" ? "bar" : originalType
@@ -107,9 +106,10 @@ export default function ChartRenderer({ config }: ChartRendererProps) {
                 type: "pie",
                 labels: originalTrace.x ?? [],
                 values: originalTrace.y ?? [],
-                hole: 0.3,
-                marker: { colors: ["#6366f1", "#8b5cf6", "#a78bfa", "#c4b5fd", "#7c3aed", "#4c1d95"] },
+                hole: 0.35,
+                marker: { colors: ["#312e81", "#3730a3", "#4338ca", "#4f46e5", "#6366f1", "#818cf8", "#a5b4fc", "#c7d2fe"] },
                 textinfo: "label+percent",
+                textfont: { color: "#E2E8F0", size: 11 },
                 hovertemplate: "%{label}<br>%{value}<br>%{percent}<extra></extra>",
             }];
         }
@@ -119,22 +119,26 @@ export default function ChartRenderer({ config }: ChartRendererProps) {
             x: originalTrace.x,
             y: originalTrace.y,
             name: originalTrace.name,
-            marker: { color: "#6366f1", opacity: 0.9 },
+            marker: { color: "#6366f1", opacity: 0.9 }, // Professional solid Indigo 500
         };
 
         if (option.mode) trace.mode = option.mode;
 
         if (activeKey === "line") {
-            trace.line = { color: "#6366f1", width: 2 };
-            trace.marker = { color: "#6366f1", size: 5 };
+            trace.line = { color: "#6366f1", width: 2.5, shape: "spline" };
+            trace.marker = { color: "#6366f1", size: 6 };
+        }
+        if (activeKey === "scatter") {
+            trace.marker = { color: "#6366f1", size: 8, opacity: 0.85 };
         }
         if (activeKey === "area") {
             trace.fill = "tozeroy";
             trace.fillcolor = "rgba(99,102,241,0.15)";
-            trace.line = { color: "#6366f1", width: 2 };
+            trace.line = { color: "#6366f1", width: 2, shape: "spline" };
         }
 
         return [trace];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeKey, config.data, originalTrace]);
 
     const builtLayout = useMemo(() => {
@@ -146,36 +150,60 @@ export default function ChartRenderer({ config }: ChartRendererProps) {
     }, [activeKey, config.layout]);
 
     return (
-        <div className="w-full rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 mt-3 shadow-sm">
+        <div
+            className="w-full rounded-xl overflow-hidden mt-3 shadow-lg"
+            style={{
+                background: "rgba(7, 7, 13, 0.7)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255,255,255,0.07)",
+            }}
+        >
             {/* ── Header ───────────────────────────────────── */}
-            <div className="flex flex-col gap-0 border-b border-zinc-800">
-                <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-900/80">
+            <div style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div
+                    className="flex items-center justify-between px-4 py-2.5"
+                    style={{ background: "rgba(13,13,22,0.9)" }}
+                >
                     <div className="flex items-center gap-2">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" strokeWidth="2" className="text-zinc-400">
-                            <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" />
-                            <line x1="6" y1="20" x2="6" y2="14" />
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7C6FFF" strokeWidth="2">
+                            <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
                         </svg>
-                        <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                        <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#7C6FFF" }}>
                             {chartTitle}
                         </span>
                     </div>
-                    <span className="text-[10px] text-zinc-600">Switch chart type →</span>
+                    <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>Switch chart type →</span>
                 </div>
 
-                {/* ── Chart Type Switcher ───────────────────── */}
-                <div className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900/40">
+                {/* Chart Type Switcher */}
+                <div
+                    className="flex items-center gap-1 px-3 py-1.5"
+                    style={{ background: "rgba(13,13,22,0.5)" }}
+                >
                     {CHART_OPTIONS.map((opt) => {
                         const isActive = activeKey === opt.key;
                         return (
                             <button
                                 key={opt.key}
                                 onClick={() => setActiveKey(opt.key)}
-                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all
-                                    ${isActive
-                                        ? "bg-indigo-600/20 text-indigo-400 border border-indigo-500/30"
-                                        : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 border border-transparent"
-                                    }`}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all"
+                                style={{
+                                    background: isActive ? "rgba(124,111,255,0.15)" : "transparent",
+                                    color: isActive ? "#7C6FFF" : "rgba(255,255,255,0.3)",
+                                    border: `1px solid ${isActive ? "rgba(124,111,255,0.3)" : "transparent"}`,
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isActive) {
+                                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.7)";
+                                        (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.05)";
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isActive) {
+                                        (e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.3)";
+                                        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                                    }
+                                }}
                             >
                                 {opt.icon}
                                 {opt.label}
@@ -192,15 +220,29 @@ export default function ChartRenderer({ config }: ChartRendererProps) {
                     ...(builtLayout as Partial<Plotly.Layout>),
                     paper_bgcolor: "transparent",
                     plot_bgcolor: "transparent",
-                    font: { color: "#94a3b8", family: "Inter, sans-serif", size: 12 },
+                    font: { color: "#94a3b8", family: "Inter, sans-serif", size: 11 },
                     margin: { l: 52, r: 20, t: 20, b: 52 },
                     autosize: true,
                     hovermode: "x unified",
                     hoverlabel: {
-                        bgcolor: "#18181b",
-                        bordercolor: "#3f3f46",
-                        font: { color: "#e4e4e7", size: 12 },
+                        bgcolor: "rgba(13,13,22,0.95)",
+                        bordercolor: "rgba(0,201,177,0.4)",
+                        font: { color: "#E2E8F0", size: 12 },
                     },
+                    xaxis: {
+                        gridcolor: "rgba(255,255,255,0.04)",
+                        zerolinecolor: "rgba(255,255,255,0.07)",
+                        tickfont: { color: "#64748b", size: 11 },
+                        linecolor: "rgba(255,255,255,0.05)",
+                    },
+                    yaxis: {
+                        gridcolor: "rgba(255,255,255,0.04)",
+                        zerolinecolor: "rgba(255,255,255,0.07)",
+                        tickfont: { color: "#64748b", size: 11 },
+                        linecolor: "rgba(255,255,255,0.05)",
+                    },
+                    bargap: 0.3,
+                    bargroupgap: 0.1,
                 }}
                 config={{
                     responsive: true,

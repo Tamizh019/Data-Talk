@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Copy } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -22,53 +20,86 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
     };
 
     return (
-        <Card className="bg-zinc-950 border-zinc-800 overflow-hidden shadow-sm mt-3">
-            <CardHeader className="flex flex-row items-center justify-between py-2.5 px-4 bg-zinc-900/80 border-b border-zinc-800 space-y-0">
+        <div
+            className="overflow-hidden rounded-xl mt-3 shadow-lg"
+            style={{
+                background: "rgba(7, 7, 13, 0.8)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(255,255,255,0.07)",
+            }}
+        >
+            {/* Header */}
+            <div
+                className="flex items-center justify-between py-2.5 px-4"
+                style={{
+                    background: "rgba(13, 13, 22, 0.9)",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                }}
+            >
                 <div className="flex items-center gap-2.5">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" strokeWidth="2" className="text-zinc-400">
-                        <rect x="3" y="3" width="4" height="18" /><rect x="10" y="3" width="4" height="18" />
-                        <rect x="17" y="3" width="4" height="18" />
+                    {/* DB columns icon */}
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7C6FFF" strokeWidth="2">
+                        <rect x="3" y="3" width="4" height="18" /><rect x="10" y="3" width="4" height="18" /><rect x="17" y="3" width="4" height="18" />
                     </svg>
-                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                    <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#7C6FFF" }}>
                         SQL Logic
                     </span>
                 </div>
-                <div className="flex items-center gap-3">
+
+                <div className="flex items-center gap-2.5">
                     {attempts > 1 && (
-                        <Badge variant="outline" className="text-[10px] text-zinc-500 border-zinc-800 bg-transparent px-2 py-0.5 rounded-md">
+                        <span
+                            className="text-[10px] font-medium px-2 py-0.5 rounded-md"
+                            style={{
+                                background: "rgba(255,255,255,0.05)",
+                                border: "1px solid rgba(255,255,255,0.06)",
+                                color: "rgba(255,255,255,0.35)",
+                            }}
+                        >
                             {attempts} attempts
-                        </Badge>
+                        </span>
                     )}
-                    <Badge variant="outline" className="text-[10px] text-zinc-400 border-zinc-800 bg-zinc-900/50 px-2 py-0.5 rounded-md gap-1.5 hidden sm:flex">
-                        <CheckCircle className="w-3 h-3 text-emerald-500" />
+                    <span
+                        className="hidden sm:flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md"
+                        style={{
+                            background: "rgba(16,185,129,0.1)",
+                            border: "1px solid rgba(16,185,129,0.2)",
+                            color: "#34d399",
+                        }}
+                    >
+                        <CheckCircle className="w-3 h-3" />
                         Query Executed
-                    </Badge>
+                    </span>
                     <button
                         onClick={handleCopy}
-                        className="text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1.5 text-[11px] font-medium ml-1 bg-zinc-800/50 hover:bg-zinc-800 px-2.5 py-1 rounded-md"
+                        className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
+                        style={{
+                            background: copied ? "rgba(0,201,177,0.15)" : "rgba(255,255,255,0.06)",
+                            color: copied ? "#00C9B1" : "rgba(255,255,255,0.5)",
+                            border: `1px solid ${copied ? "rgba(0,201,177,0.3)" : "rgba(255,255,255,0.08)"}`,
+                        }}
                     >
                         <Copy className="w-3 h-3" />
-                        {copied ? "Copied" : "Copy"}
+                        {copied ? "Copied!" : "Copy"}
                     </button>
                 </div>
-            </CardHeader>
-            <CardContent className="p-0">
-                <SyntaxHighlighter
-                    language="sql"
-                    style={oneDark}
-                    customStyle={{
-                        margin: 0,
-                        padding: "1rem 1.25rem",
-                        background: "transparent",
-                        fontSize: "13px",
-                        lineHeight: "1.6",
-                    }}
-                    codeTagProps={{ style: { fontFamily: "'JetBrains Mono', monospace" } }}
-                >
-                    {sql}
-                </SyntaxHighlighter>
-            </CardContent>
-        </Card>
+            </div>
+
+            {/* Code */}
+            <SyntaxHighlighter
+                language="sql"
+                style={oneDark}
+                customStyle={{
+                    margin: 0,
+                    padding: "1rem 1.25rem",
+                    background: "transparent",
+                    fontSize: "13px",
+                    lineHeight: "1.65",
+                }}
+                codeTagProps={{ style: { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" } }}
+            >
+                {sql}
+            </SyntaxHighlighter>
+        </div>
     );
 }
