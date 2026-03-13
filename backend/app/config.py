@@ -8,8 +8,16 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.1-pro-preview"
 
+    # --- Multi-Agent Setup (Groq & OpenRouter) ---
+    groq_api_key: str = ""
+    groq_router_model: str = "llama-3.1-8b-instant"
+    groq_qa_model: str = "llama-3.3-70b-versatile"
+    groq_visualizer_model: str = "llama-3.3-70b-versatile"
+    openrouter_api_key: str = ""
+    openrouter_sql_model: str = "anthropic/claude-3.5-sonnet"
+
     # --- Target PostgreSQL Database ---
-    target_db_url: str = "postgresql+asyncpg://datatalk:datatalk_secret@localhost:5432/enterprise_data"
+    target_db_url: str = ""
 
     # --- Vector Store (LlamaIndex + pgvector) ---
     use_pgvector: bool = True

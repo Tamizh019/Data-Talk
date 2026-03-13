@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PlusCircle, MessageSquare, Database, Settings, User, Trash2, BarChart2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat } from "@/lib/chat-context";
+import { useAuth } from "@/lib/auth-context";
 
 interface SidebarProps {
     dbConnected?: boolean;
@@ -12,6 +13,7 @@ interface SidebarProps {
 
 export default function Sidebar({ dbConnected = false }: SidebarProps) {
     const { conversations, activeId, setActiveChat, createNewChat, deleteChat } = useChat();
+    const { user } = useAuth();
 
     return (
         <div
@@ -110,7 +112,7 @@ export default function Sidebar({ dbConnected = false }: SidebarProps) {
             <div className="px-4 pb-5 mt-auto">
                 <div className="border-t border-white/5 mb-4" />
                 <div
-                    className="flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer"
+                    className="flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-white/5 cursor-pointer"
                     style={{
                         background: "rgba(13, 13, 22, 0.6)",
                         border: "1px solid rgba(255,255,255,0.06)",
@@ -118,16 +120,26 @@ export default function Sidebar({ dbConnected = false }: SidebarProps) {
                     }}
                 >
                     <div
-                        className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-[#7C6FFF] text-sm shrink-0"
-                        style={{ background: "rgba(124,111,255,0.15)" }}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0 overflow-hidden"
+                        style={{ background: "linear-gradient(135deg, #7C6FFF, #00C9B1)" }}
                     >
-                        DT
+                        {user?.user_metadata?.full_name
+                            ? user.user_metadata.full_name.charAt(0).toUpperCase()
+                            : user?.email
+                                ? user.email.charAt(0).toUpperCase()
+                                : "DT"}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-white truncate">Data-Talk</p>
-                        <p className="text-[10px] text-white/30">Workspace Admin</p>
+                        <p className="text-[12px] font-bold text-white truncate">
+                            {user?.user_metadata?.full_name || user?.user_metadata?.name || "Premium User"}
+                        </p>
+                        <p className="text-[10px] text-white/40 truncate">
+                            {user?.email || "Workspace Admin"}
+                        </p>
                     </div>
-                    <Settings className="w-4 h-4 text-white/30 hover:text-white/70 cursor-pointer transition-colors shrink-0" />
+                    <a href="/profile">
+                        <Settings className="w-4 h-4 text-white/30 hover:text-white/70 cursor-pointer transition-colors shrink-0" />
+                    </a>
                 </div>
             </div>
         </div>

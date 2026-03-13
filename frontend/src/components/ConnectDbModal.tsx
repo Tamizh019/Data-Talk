@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { connectDatabase } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@/lib/supabase";
 
 interface ConnectDbModalProps {
     onClose: () => void;
@@ -9,16 +11,95 @@ interface ConnectDbModalProps {
 }
 
 export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalProps) {
-    const [url, setUrl] = useState("");
+    const { user: authUser } = useAuth();
+    const supabase = createClient();
+
+    const [connectionType, setConnectionType] = useState<"parameters" | "uri">("parameters");
+    const [uri, setUri] = useState("");
+    const [host, setHost] = useState("localhost");
+    const [port, setPort] = useState("5432");
+    const [db_user, setDbUser] = useState("postgres"); // Changed from 'user' to avoid conflict
+    const [password, setPassword] = useState("");
+    const [dbname, setDbname] = useState("");
+    
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [errorMsg, setErrorMsg] = useState("");
 
     const handleConnect = async () => {
-        if (!url.trim()) return;
+        let url = "";
+
+        if (connectionType === "parameters") {
+            if (!host || !port || !db_user || !password || !dbname) {
+                setStatus("error");
+                setErrorMsg("Please fill in all connection fields.");
+                return;
+            }
+            url = `postgresql://${encodeURIComponent(db_user)}:${encodeURIComponent(password)}@${host}:${port}/${dbname}`;
+        } else {
+            if (!uri.trim()) {
+                setStatus("error");
+                setErrorMsg("Please enter a connection URI.");
+                return;
+            }
+            let finalUri = uri.trim();
+            // Automatically url-encode the password part if it contains special characters
+            try {
+                const match = finalUri.match(/^(postgresql:\/\/|postgres:\/\/)(.*)/);
+                if (match) {
+                    const protocol = match[1];
+                    const rest = match[2];
+                    const firstColon = rest.indexOf(':');
+                    const lastAt = rest.lastIndexOf('@');
+                    
+                    if (firstColon !== -1 && lastAt !== -1 && firstColon < lastAt) {
+                        const u = rest.substring(0, firstColon);
+                        const p = rest.substring(firstColon + 1, lastAt);
+                        const hostPortDb = rest.substring(lastAt + 1);
+                        
+                        // Decode first in case it's partially encoded, then encode
+                        const safePassword = encodeURIComponent(decodeURIComponent(p));
+                        finalUri = `${protocol}${u}:${safePassword}@${hostPortDb}`;
+                    }
+                }
+            } catch (e) {
+                // Ignore parse errors, let backend handle it
+            }
+            url = finalUri;
+        }
+
         setStatus("loading");
         setErrorMsg("");
         try {
-            await connectDatabase(url.trim());
+            // 1. Backend Connection
+            await connectDatabase(url);
+
+            // 2. Persist to Supabase if logged in
+            if (authUser) {
+                // Deactivate all existing connections for this user
+                await supabase
+                    .from("db_connections")
+                    .update({ is_active: false })
+                    .eq("user_id", authUser.id);
+
+                // Upsert this new connection
+                // We'll use the DB name as the name if using parameters, or 'Main Database' for URI
+                const connName = connectionType === "parameters" ? dbname : "Main Database";
+                
+                const { error: upsertError } = await supabase
+                    .from("db_connections")
+                    .upsert({
+                        user_id: authUser.id,
+                        name: connName,
+                        connection_uri: url,
+                        is_active: true
+                    });
+                
+                if (upsertError) {
+                    console.error("Failed to save connection to Supabase:", upsertError);
+                    // We don't block the UI if Supabase save fails but backend succeeded
+                }
+            }
+
             setStatus("success");
             setTimeout(() => {
                 onConnected();
@@ -28,6 +109,13 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
             setStatus("error");
             setErrorMsg(err instanceof Error ? err.message : "Connection failed");
         }
+    };
+
+    const inputStyles = {
+        background: "rgba(255,255,255,0.04)",
+        border: `1px solid ${status === "error" ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.1)"}`,
+        color: "white",
+        caretColor: "#7C6FFF",
     };
 
     return (
@@ -62,7 +150,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                         </div>
                         <div>
                             <h2 className="text-[14px] font-bold text-white">Connect Database</h2>
-                            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>Enter your PostgreSQL connection URL</p>
+                            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>Enter PostgreSQL connection details</p>
                         </div>
                     </div>
                     <button
@@ -80,53 +168,130 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
 
                 {/* Body */}
                 <div className="px-6 py-5 space-y-4">
-                    {/* Format hint */}
-                    <div
-                        className="px-3 py-2.5 rounded-xl text-[11px] font-mono"
-                        style={{
-                            background: "rgba(124,111,255,0.08)",
-                            border: "1px solid rgba(124,111,255,0.15)",
-                            color: "#7C6FFF",
-                        }}
-                    >
-                        postgresql://user:password@host:5432/database
+                    {/* Toggle */}
+                    <div className="flex p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                        <button
+                            onClick={() => setConnectionType("parameters")}
+                            className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${connectionType === "parameters" ? "text-white shadow-sm" : "text-white/40 hover:text-white/60"}`}
+                            style={{ background: connectionType === "parameters" ? "rgba(124,111,255,0.15)" : "transparent" }}
+                        >
+                            Parameters
+                        </button>
+                        <button
+                            onClick={() => setConnectionType("uri")}
+                            className={`flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all ${connectionType === "uri" ? "text-white shadow-sm" : "text-white/40 hover:text-white/60"}`}
+                            style={{ background: connectionType === "uri" ? "rgba(124,111,255,0.15)" : "transparent" }}
+                        >
+                            Connection URI
+                        </button>
                     </div>
 
-                    {/* Input */}
+                    {connectionType === "parameters" ? (
+                        <>
+                            {/* Input Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                        {/* Host */}
+                        <div>
+                            <label className="block text-[11px] font-semibold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>HOST</label>
+                            <input
+                                type="text"
+                                value={host}
+                                onChange={(e) => setHost(e.target.value)}
+                                placeholder="localhost"
+                                className="w-full rounded-xl px-3 py-2 text-[13px] outline-none transition-all"
+                                style={inputStyles}
+                                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(124,111,255,0.5)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.08)"; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.boxShadow = "none"; }}
+                            />
+                        </div>
+                        {/* Port */}
+                        <div>
+                            <label className="block text-[11px] font-semibold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>PORT</label>
+                            <input
+                                type="text"
+                                value={port}
+                                onChange={(e) => setPort(e.target.value)}
+                                placeholder="5432"
+                                className="w-full rounded-xl px-3 py-2 text-[13px] outline-none transition-all"
+                                style={inputStyles}
+                                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(124,111,255,0.5)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.08)"; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.boxShadow = "none"; }}
+                            />
+                        </div>
+                        {/* User */}
+                        <div>
+                            <label className="block text-[11px] font-semibold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>USERNAME</label>
+                            <input
+                                type="text"
+                                value={db_user}
+                                onChange={(e) => setDbUser(e.target.value)}
+                                placeholder="postgres"
+                                className="w-full rounded-xl px-3 py-2 text-[13px] outline-none transition-all"
+                                style={inputStyles}
+                                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(124,111,255,0.5)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.08)"; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.boxShadow = "none"; }}
+                            />
+                        </div>
+                        {/* Password */}
+                        <div>
+                            <label className="block text-[11px] font-semibold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>PASSWORD</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="••••••••"
+                                className="w-full rounded-xl px-3 py-2 text-[13px] outline-none transition-all"
+                                style={inputStyles}
+                                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(124,111,255,0.5)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.08)"; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.boxShadow = "none"; }}
+                            />
+                        </div>
+                    </div>
+                    {/* Database Name */}
                     <div>
-                        <label className="block text-[11px] font-semibold mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
-                            DATABASE URL
-                        </label>
+                        <label className="block text-[11px] font-semibold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>DATABASE NAME</label>
                         <input
                             type="text"
-                            value={url}
-                            onChange={(e) => setUrl(e.target.value)}
+                            value={dbname}
+                            onChange={(e) => setDbname(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleConnect()}
-                            placeholder="postgresql://postgres:password@localhost:5432/mydb"
-                            autoFocus
-                            className="w-full rounded-xl px-4 py-3 text-[13px] outline-none transition-all"
-                            style={{
-                                background: "rgba(255,255,255,0.04)",
-                                border: `1px solid ${status === "error" ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.1)"}`,
-                                color: "white",
-                                caretColor: "#7C6FFF",
-                            }}
+                            placeholder="my_database"
+                            className="w-full rounded-xl px-3 py-2 text-[13px] outline-none transition-all"
+                            style={inputStyles}
                             onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(124,111,255,0.5)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.08)"; }}
                             onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.boxShadow = "none"; }}
                         />
-                        {status === "error" && (
-                            <p className="mt-2 text-[11px]" style={{ color: "#f87171" }}>
-                                ⚠ {errorMsg}
-                            </p>
-                        )}
                     </div>
+                        </>
+                    ) : (
+                        <div>
+                            <label className="block text-[11px] font-semibold mb-1.5" style={{ color: "rgba(255,255,255,0.5)" }}>CONNECTION URI</label>
+                            <input
+                                type="text"
+                                value={uri}
+                                onChange={(e) => setUri(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+                                placeholder="postgresql://user:password@host:port/dbname"
+                                className="w-full rounded-xl px-3 py-2 text-[13px] outline-none transition-all"
+                                style={inputStyles}
+                                onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(124,111,255,0.5)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.08)"; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; e.currentTarget.style.boxShadow = "none"; }}
+                            />
+                        </div>
+                    )}
+                    
+                    {status === "error" && (
+                        <p className="mt-2 text-[11px]" style={{ color: "#f87171" }}>
+                            ⚠ {errorMsg}
+                        </p>
+                    )}
 
                     {/* Tips */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 pt-2">
                         {[
                             "Supports PostgreSQL only",
-                            "Use URL-encoded special chars in passwords (@ → %40)",
                             "The database schema will be indexed automatically",
+                            "Using Supabase? Use the IPv4 Session Pooler connection details",
                         ].map((tip, i) => (
                             <div key={i} className="flex items-start gap-2">
                                 <span style={{ color: "#00C9B1", fontSize: "10px", marginTop: "2px" }}>◆</span>
@@ -152,7 +317,11 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                     </button>
                     <button
                         onClick={handleConnect}
-                        disabled={!url.trim() || status === "loading" || status === "success"}
+                        disabled={
+                            (connectionType === "parameters" && (!host || !port || !db_user || !password || !dbname)) || 
+                            (connectionType === "uri" && !uri.trim()) || 
+                            status === "loading" || status === "success"
+                        }
                         className="px-5 py-2 rounded-xl text-[12px] font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
                             background: status === "success" ? "#10b981" : "#4f46e5",

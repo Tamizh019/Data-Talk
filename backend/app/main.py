@@ -67,6 +67,18 @@ async def reindex_schema():
         raise HTTPException(status_code=500, detail=f"Re-indexing failed: {str(e)}")
 
 
+@app.get("/api/schema", tags=["admin"])
+async def get_schema():
+    """Return the current database tables and columns."""
+    from fastapi import HTTPException
+    from app.core.schema_indexer import schema_indexer
+    try:
+        tables = await schema_indexer.fetch_db_schema()
+        return {"tables": tables}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch schema: {str(e)}")
+
+
 @app.post("/api/connect", tags=["admin"])
 async def connect_database(payload: dict):
     """
@@ -100,11 +112,13 @@ async def connect_database(payload: dict):
     try:
         # Force SQL executor to use new URL
         from app.core import sql_executor as _sql_exec
-        _sql_exec._engine = None  # type: ignore[attr-defined]
-    except Exception:
-        pass
+        _sql_exec._engine = None
 
-    try:
+        # Explicitly test connection before blindly assuming success
+        engine = _sql_exec.get_db_engine()
+        async with engine.connect() as conn:
+            pass # successful connect validates credentials
+
         await schema_indexer.build_schema_index()
         return {"status": "connected", "message": "Database connected and schema indexed successfully"}
     except Exception as e:

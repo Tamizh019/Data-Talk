@@ -1,15 +1,84 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
+import RightSidebar from "@/components/RightSidebar";
 import ChatWindow from "@/components/ChatWindow";
 import ConnectDbModal from "@/components/ConnectDbModal";
 import { ChatProvider, useChat } from "@/lib/chat-context";
+import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@/lib/supabase";
+import { connectDatabase } from "@/lib/api";
 
 function ChatLayout() {
     const { activeConversation } = useChat();
+    const { user, signOut } = useAuth();
+    const supabase = useRef(createClient()).current;
+
     const [showConnectModal, setShowConnectModal] = useState(false);
-    const [dbConnected, setDbConnected] = useState(true); // default from .env
+    const [dbConnected, setDbConnected] = useState(false);
+    const [showDbPopover, setShowDbPopover] = useState(false);
+    const popoverRef = useRef<HTMLDivElement>(null);
+
+    // ── Auto Reconnect logic ──
+    useEffect(() => {
+        if (!user) return;
+
+        const autoReconnect = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from("db_connections")
+                    .select("connection_uri")
+                    .eq("user_id", user.id)
+                    .eq("is_active", true)
+                    .maybeSingle();
+
+                if (data?.connection_uri) {
+                    await connectDatabase(data.connection_uri);
+                    setDbConnected(true);
+                    console.log("[Auto-Reconnect] Connected successfully");
+                }
+            } catch (err) {
+                console.error("[Auto-Reconnect] Failed:", err);
+            }
+        };
+
+        autoReconnect();
+    }, [user, supabase]);
+
+    // Close popover on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+                setShowDbPopover(false);
+            }
+        };
+        if (showDbPopover) document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [showDbPopover]);
+
+    const handleDbButtonClick = () => {
+        if (dbConnected) {
+            setShowDbPopover((prev) => !prev);
+        } else {
+            setShowConnectModal(true);
+        }
+    };
+
+    const handleDisconnectAndReconnect = async () => {
+        setShowDbPopover(false);
+        setDbConnected(false);
+        
+        // Deactivate in Supabase
+        if (user) {
+            await supabase
+                .from("db_connections")
+                .update({ is_active: false })
+                .eq("user_id", user.id);
+        }
+
+        setShowConnectModal(true);
+    };
 
     return (
         <div className="flex h-screen overflow-hidden relative" style={{ background: "#07070D" }}>
@@ -23,8 +92,8 @@ function ChatLayout() {
             {/* ── Sidebar ── */}
             <Sidebar dbConnected={dbConnected} />
 
-            {/* ── Main ── */}
-            <main className="flex-1 flex flex-col overflow-hidden relative z-10">
+            {/* ── Main Layout (Header + Content) ── */}
+            <div className="flex-1 flex flex-col overflow-hidden relative z-10">
                 {/* ── Top Bar / Header ── */}
                 <header className="h-14 glass-panel border-b border-white/5 flex items-center justify-between px-6 z-50 shrink-0">
                     {/* Left: Logo + Title */}
@@ -49,44 +118,67 @@ function ChatLayout() {
 
                     {/* Right: Actions */}
                     <div className="flex items-center gap-3">
-                        {/* DB Connection Status pill */}
-                        <div
-                            className="flex items-center gap-1.5 px-3 py-1 rounded-full border"
-                            style={{
-                                background: dbConnected ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
-                                borderColor: dbConnected ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)",
-                            }}
-                        >
-                            <span
-                                className="w-1.5 h-1.5 rounded-full"
+                        {/* ── DB Button (context-aware) ── */}
+                        <div className="relative" ref={popoverRef}>
+                            <button
+                                onClick={handleDbButtonClick}
+                                className="relative flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-semibold text-white transition-all active:scale-[0.97]"
                                 style={{
-                                    background: dbConnected ? "#34d399" : "#f87171",
-                                    boxShadow: dbConnected ? "0 0 6px #34d399" : "0 0 6px #f87171",
-                                    animation: "pulse 2s infinite",
+                                    background: dbConnected
+                                        ? "rgba(16,185,129,0.12)"
+                                        : "rgba(255,255,255,0.05)",
+                                    border: dbConnected
+                                        ? "1px solid rgba(16,185,129,0.35)"
+                                        : "1px solid rgba(255,255,255,0.15)",
                                 }}
-                            />
-                            <span
-                                className="text-[10px] font-bold uppercase tracking-wider"
-                                style={{ color: dbConnected ? "#34d399" : "#f87171" }}
                             >
-                                {dbConnected ? "Postgres Connected" : "Not Connected"}
-                            </span>
-                        </div>
+                                {/* Pulsing dot */}
+                                <span
+                                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                                    style={{
+                                        background: dbConnected ? "#34d399" : "#f87171",
+                                        boxShadow: dbConnected ? "0 0 6px #34d399" : "0 0 6px #f87171",
+                                        animation: "pulse 2s infinite",
+                                    }}
+                                />
+                                {dbConnected ? "Connected" : "Connect Database"}
+                            </button>
 
-                        {/* ── Connect Database Button ── */}
-                        <button
-                            onClick={() => setShowConnectModal(true)}
-                            className="relative flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-semibold text-white transition-all hover:bg-white/10 active:scale-[0.97]"
-                            style={{
-                                background: "rgba(255,255,255,0.05)",
-                                border: "1px solid rgba(255,255,255,0.15)",
-                            }}
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
-                            </svg>
-                            Connect Database
-                        </button>
+                            {/* ── Disconnect Popover ── */}
+                            {showDbPopover && dbConnected && (
+                                <div
+                                    className="absolute top-full right-0 mt-2 w-[230px] rounded-xl overflow-hidden shadow-2xl z-[100] animate-fadein"
+                                    style={{
+                                        background: "rgba(13,13,22,0.97)",
+                                        border: "1px solid rgba(255,255,255,0.08)",
+                                        backdropFilter: "blur(24px)",
+                                    }}
+                                >
+                                    <div className="px-4 pt-3 pb-2 border-b border-white/5">
+                                        <p className="text-[11px] font-bold text-white/80">Database Connected</p>
+                                        <p className="text-[10px] text-white/40 mt-0.5">PostgreSQL is currently active. What would you like to do?</p>
+                                    </div>
+                                    <div className="p-2 space-y-1">
+                                        <button
+                                            onClick={() => setShowDbPopover(false)}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" style={{ boxShadow: "0 0 5px #34d399" }} />
+                                            Keep Connected
+                                        </button>
+                                        <button
+                                            onClick={handleDisconnectAndReconnect}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+                                        >
+                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                            Disconnect &amp; Reconnect
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Divider */}
                         <div className="w-px h-5 opacity-10" style={{ background: "white" }} />
@@ -120,19 +212,63 @@ function ChatLayout() {
                             />
                         </button>
 
-                        {/* Avatar */}
-                        <div
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white cursor-pointer hover:scale-105 transition-transform border border-white/15"
-                            style={{ background: "linear-gradient(135deg, #7C6FFF, #00C9B1)" }}
-                        >
-                            DT
+                        {/* Avatar + Sign out */}
+                        <div className="relative group">
+                            <button
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white hover:scale-105 transition-transform border border-white/15 overflow-hidden"
+                                style={{ background: "linear-gradient(135deg, #7C6FFF, #00C9B1)" }}
+                                title={user?.email ?? "Account"}
+                            >
+                                {user?.user_metadata?.full_name
+                                    ? user.user_metadata.full_name.charAt(0).toUpperCase()
+                                    : user?.email
+                                        ? user.email.charAt(0).toUpperCase()
+                                        : "DT"}
+                            </button>
+                            {/* Dropdown Menu */}
+                            <div
+                                className="absolute top-full right-0 mt-2 hidden group-hover:flex flex-col w-36 py-1.5 rounded-xl z-50 animate-fadein"
+                                style={{
+                                    background: "rgba(13,13,22,0.97)",
+                                    border: "1px solid rgba(255,255,255,0.08)",
+                                    backdropFilter: "blur(16px)",
+                                    boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+                                }}
+                            >
+                                <a
+                                    href="/profile"
+                                    className="flex items-center gap-2 px-3 py-2 text-[12px] font-medium text-white/80 hover:text-white hover:bg-white/5 transition-colors"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                        <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                    Profile
+                                </a>
+                                <div className="h-px w-full my-1 bg-white/5" />
+                                <button
+                                    onClick={signOut}
+                                    className="flex items-center gap-2 px-3 py-2 text-[12px] font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors w-full text-left"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                    Sign out
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </header>
 
-                {/* ── Chat Window ── */}
-                <ChatWindow />
-            </main>
+                <div className="flex-1 flex overflow-hidden">
+                    {/* ── Chat Window ── */}
+                    <main className="flex-1 flex flex-col overflow-hidden relative">
+                        <ChatWindow />
+                    </main>
+
+                    {/* ── Right Sidebar ── */}
+                    <RightSidebar dbConnected={dbConnected} />
+                </div>
+            </div>
 
             {/* ── Connect DB Modal ── */}
             {showConnectModal && (

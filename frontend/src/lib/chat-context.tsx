@@ -28,7 +28,7 @@ const STORAGE_KEY = "datatalk_history";
 const WELCOME_MESSAGES: ChatMessage[] = [
     {
         role: "assistant",
-        content: "👋 Hello! I'm **Data-Talk AI**. Connect your database, then ask me anything — I'll generate the SQL, run it, and visualize the results automatically.",
+        content: "Hello! I'm **Data-Talk AI**. Connect your database, then ask me anything — I'll generate the SQL, run it, and visualize the results automatically.",
     }
 ];
 
@@ -118,10 +118,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 return { ...c, messages: newMessages, title, updatedAt: Date.now() };
             }
             return c;
-        }).sort((a, b) => b.updatedAt - a.updatedAt)); // Keep newest on top
+        }).sort((a, b) => b.updatedAt - a.updatedAt));
     };
 
-    // Don't render children until we've loaded from storage to prevent hydration mismatch
     if (!isLoaded) return null;
 
     return (

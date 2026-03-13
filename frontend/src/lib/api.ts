@@ -110,3 +110,20 @@ export async function connectDatabase(dbUrl: string): Promise<{ status: string; 
     return res.json();
 }
 
+export interface SchemaTable {
+    table: string;
+    columns: string;
+}
+
+/** Fetch current database schema */
+export async function fetchSchema(): Promise<{ tables: SchemaTable[] }> {
+    const res = await fetch("http://localhost:8000/api/schema", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) {
+        throw new Error("Failed to fetch schema");
+    }
+    return res.json();
+}
+

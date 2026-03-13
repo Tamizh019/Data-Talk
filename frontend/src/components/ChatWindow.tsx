@@ -51,7 +51,7 @@ export default function ChatWindow() {
                     i === p.length - 1 ? { ...m, sql: data.sql, plotlyConfig: data.plotly_config, content: data.explanation, isCached: true } : m
                 )),
             onError: (message) =>
-                updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, content: `⚠️ ${message}`, error: message } : m)),
+                updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, content: `Error: ${message}`, error: message } : m)),
             onDone: () => {
                 updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, isStreaming: false } : m));
                 setIsLoading(false);

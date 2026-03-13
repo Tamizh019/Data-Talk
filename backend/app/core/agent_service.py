@@ -1,12 +1,16 @@
 """
-Hybrid LLM Router:
-  - Conversation    → Google Gemini Pro
+DEPRECATED: Monolithic LLM Agent Service.
+This file is no longer used. See `app/agents/orchestrator.py` for the new Multi-Agent architecture.
+
+Contains LLM logic: intent classification, SQL generation, 
+and explaining query results in plain English.
 """
 import logging
-from typing import Literal
+import json
+import uuid
+from typing import Dict, Any
 
-import google.generativeai as genai
-
+from sqlalchemy import text
 from app.config import get_settings
 from app.core.security import guard_prompt
 
@@ -44,11 +48,22 @@ Examples:
   'thanks' → chat
 """
 
-async def classify_intent(query: str) -> Literal["sql", "chat"]:
+async def classify_intent(query: str, history: list = None) -> str:
     """
     Uses Gemini to classify whether query should generate SQL or go to conversation.
     """
-    prompt = f"{INTENT_SYSTEM}\n\nUser message: {query}\nIntent:"
+    history_text = ""
+    if history:
+        recent_history = history[-4:]
+        lines = []
+        for msg in recent_history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            content = msg["parts"][0] if hasattr(msg, "get") and msg.get("parts") else str(msg)
+            # Truncate assistant responses so prompt doesn't get flooded
+            lines.append(f"{role}: {content[:150]}")
+        history_text = "Recent context:\n" + "\n".join(lines) + "\n\n"
+
+    prompt = f"{INTENT_SYSTEM}\n\n{history_text}User message: {query}\nIntent:"
     response = await _gemini_model.generate_content_async(prompt)
     return response.text
 
@@ -66,17 +81,31 @@ Rules:
 """
 
 
-async def call_sql_generator(schema_context: str, user_query: str) -> str:
+async def call_sql_generator(schema_context: str, user_query: str, history: list = None) -> str:
     """
     Calls Gemini to generate SQL from a natural language query.
     Returns a clean SQL SELECT string without markdown fences.
     """
+    history_text = ""
+    if history:
+        recent_history = history[-4:]
+        lines = []
+        for msg in recent_history:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            # Get content safely
+            if isinstance(msg, dict) and "parts" in msg:
+                content = msg["parts"][0]
+            else:
+                content = str(msg)
+            lines.append(f"{role}: {content[:500]}") 
+        history_text = "### Recent Conversation Context (for reference)\n" + "\n".join(lines) + "\n\n"
+
     prompt = f"""{SQL_SYSTEM}
 
 ### Database Schema
 {schema_context}
 
-### User Question
+{history_text}### User Question
 {user_query}
 
 ### SQL Query (output only the SQL, nothing else):
@@ -140,14 +169,14 @@ async def route_query(
     from app.core.schema_indexer import schema_indexer
     
     guard_prompt(user_query)          # Raises if injection detected
-    intent_raw = await classify_intent(user_query)
+    intent_raw = await classify_intent(user_query, history)
     intent: Literal["sql", "chat"] = "sql" if "sql" in intent_raw.lower() else "chat"
     logger.info(f"[Intent] '{user_query[:50]}' → {intent}")
 
     if intent == "sql":
         # RETRIEVAL STEP: Get only relevant schema chunks from pgvector
         schema_context = await schema_indexer.get_schema_context(user_query)
-        sql = await call_sql_generator(schema_context, user_query)
+        sql = await call_sql_generator(schema_context, user_query, history)
         return {"intent": "sql", "sql": sql}
     else:
         explanation = await call_gemini_chat(history, user_query)
