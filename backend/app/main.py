@@ -88,6 +88,8 @@ async def connect_database(payload: dict):
     from fastapi import HTTPException
     from app.core.schema_indexer import schema_indexer
 
+    import urllib.parse
+    
     db_url: str = payload.get("db_url", "").strip()
     if not db_url:
         raise HTTPException(status_code=400, detail="db_url is required")
@@ -103,8 +105,40 @@ async def connect_database(payload: dict):
             detail="Invalid URL. Use format: postgresql://user:pass@host:port/dbname"
         )
 
+    # --- Supabase Options Fix & Schema Extraction ---
+    target_schema = "public"
+    if "?" in db_url:
+        base, query = db_url.split("?", 1)
+        params = urllib.parse.parse_qs(query)
+        
+        # Check for options=-csearch_path=student or options="-c search_path=student"
+        options = params.get("options", [])
+        for opt in options:
+            if "search_path" in opt:
+                # Format: -csearch_path=student or -c search_path=student
+                parts = opt.split("=")
+                if len(parts) >= 2:
+                    target_schema = parts[-1].strip()
+        
+        # Check standard search_path explicitly passed
+        if "search_path" in params:
+            target_schema = params["search_path"][0].strip()
+            # We keep standard search_path in the URL as asyncpg supports it directly
+            
+        # Remove the 'options' parameter as it crashes psycopg3/asyncpg
+        if "options" in params:
+            del params["options"]
+            
+        # Rebuild URL
+        if params:
+            new_query = urllib.parse.urlencode(params, doseq=True)
+            db_url = f"{base}?{new_query}"
+        else:
+            db_url = base
+
     # Update runtime settings and env
     settings.target_db_url = db_url
+    settings.target_schema = target_schema
     import os
     os.environ["TARGET_DB_URL"] = db_url
 

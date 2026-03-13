@@ -20,7 +20,10 @@ def get_db_engine():
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
-            connect_args={"command_timeout": 10},  # asyncpg uses command_timeout, not timeout
+            connect_args={
+                "command_timeout": 10,
+                "server_settings": {"search_path": settings.target_schema}
+            },
             # Enforce read-only at connection level for extra safety
             execution_options={"postgresql_readonly": True},
         )
@@ -57,7 +60,7 @@ async def get_schema_info() -> str:
     Fetches table names and column definitions from PostgreSQL information_schema.
     Returns a human-readable schema string for LlamaIndex indexing.
     """
-    schema_query = """
+    schema_query = sqlalchemy.text("""
     SELECT
         t.table_name,
         c.column_name,
@@ -66,17 +69,21 @@ async def get_schema_info() -> str:
         c.column_default
     FROM information_schema.tables t
     JOIN information_schema.columns c ON t.table_name = c.table_name
-    WHERE t.table_schema = 'public'
+    WHERE t.table_schema = :schema
       AND t.table_type = 'BASE TABLE'
     ORDER BY t.table_name, c.ordinal_position;
-    """
+    """)
     # For schema discovery we use a regular (non-read-only) connection
     settings = get_settings()
-    engine = create_async_engine(settings.target_db_url, pool_pre_ping=True)
+    engine = create_async_engine(
+        settings.target_db_url, 
+        pool_pre_ping=True,
+        connect_args={"server_settings": {"search_path": settings.target_schema}}
+    )
 
     try:
         async with engine.connect() as conn:
-            result = await conn.execute(sqlalchemy.text(schema_query))
+            result = await conn.execute(schema_query, {"schema": settings.target_schema})
             rows = result.fetchall()
 
         if not rows:

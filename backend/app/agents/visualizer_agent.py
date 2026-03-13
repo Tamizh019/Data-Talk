@@ -119,12 +119,47 @@ Generate the best 3-4 ECharts dashboard configurations for this data:"""
         )
 
         raw = response.text.strip()
-        # Parse the JSON array
-        charts = json.loads(raw)
+
+        # ── Robust JSON extraction ────────────────────────────────────────────
+        # Gemini sometimes appends explanation text after the JSON array.
+        # We find the first '[' and track brackets to locate the closing ']'.
+        charts = None
+        start = raw.find("[")
+        if start != -1:
+            depth = 0
+            end = -1
+            in_string = False
+            escape_next = False
+            for i, ch in enumerate(raw[start:], start=start):
+                if escape_next:
+                    escape_next = False
+                    continue
+                if ch == "\\" and in_string:
+                    escape_next = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                if not in_string:
+                    if ch == "[":
+                        depth += 1
+                    elif ch == "]":
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+            if end != -1:
+                try:
+                    charts = json.loads(raw[start:end])
+                except json.JSONDecodeError:
+                    pass  # fall through to full parse attempt
+
+        # Fallback: try parsing the whole raw string (strip markdown fences)
+        if charts is None:
+            cleaned = raw.replace("```json", "").replace("```", "").strip()
+            charts = json.loads(cleaned)
 
         # Validate: must be a list of dicts
         if not isinstance(charts, list):
-            # Maybe Gemini wrapped it in an object
             if isinstance(charts, dict) and "charts" in charts:
                 charts = charts["charts"]
             else:
@@ -145,3 +180,4 @@ Generate the best 3-4 ECharts dashboard configurations for this data:"""
     except Exception as e:
         logger.error(f"VisualizerAgent failed: {e}")
         return None
+

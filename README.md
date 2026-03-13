@@ -1,94 +1,214 @@
-# Data-Talk AI
+# Data-Talk AI 🧠
 
-An enterprise-grade Conversational AI platform that allows non-technical users to chat with their Postgres databases in natural English. It automatically generates SQL, executes read-only queries securely, and renders beautiful interactive data visualizations.
+An enterprise-grade Conversational AI platform that lets non-technical users **chat with their PostgreSQL database in plain English**. Just type a question — Data-Talk generates the SQL, runs it securely, renders interactive charts, and writes a plain-English summary of the results — all in real-time.
 
-![](frontend/public/placeholder.png) 
-
-## Key Features
-
-- **Text-to-SQL Engine**: Powered by Google Gemini. Converts natural language questions directly into optimized PostgreSQL queries.
-- **Auto-Visualization**: Intelligently analyzes numeric and categorical query results to instantly render the perfect chart (Bar, Line, Area, Scatter, Pie).
-- **Interactive UI**: Premium Z.ai-inspired dark theme built with Next.js, Shadcn UI, and Tailwind.
-- **Enterprise Security**: Strict read-only database execution (`postgresql_readonly`, `SELECT`/`WITH` parsing) to prevent any mutation of data.
-- **Chat Persistence**: Full chat history and state saved directly to standard browser `localStorage` for privacy and speed.
-- **Self-Correcting LLM Loop**: If a generated SQL query fails syntax execution, the AI gets the error context and auto-corrects the query.
+![Data-Talk UI](frontend/public/placeholder.png)
 
 ---
 
-## Architecture Stack
+## ✨ Key Features
 
-### Frontend (User Interface)
-- **Framework**: [Next.js 14](https://nextjs.org/) (App Router, TypeScript)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) + [Shadcn/UI](https://ui.shadcn.com/)
-- **Visualizations**: `react-plotly.js` (Fully interactive with zoom, pan, hover, and PNG export)
-
-### Backend (API & AI Agent)
-- **Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python, Async)
-- **LLM/AI**: [Google Gemini Pro / Flash](https://aistudio.google.com/) via `google-generativeai`
-- **Database Driver**: SQLAlchemy + `asyncpg`
+- **Multi-Agent Pipeline** — Dedicated AI agents for routing, SQL generation, QA review, visualization, and analysis — each using the model best suited to its task.
+- **Text-to-SQL** — Claude 3.5 Sonnet converts natural language questions into optimized, accurate PostgreSQL queries.
+- **Auto-Visualization** — Gemini Pro analyzes query results and picks the best 3-4 charts from 15 chart types (Bar, Line, Donut, Scatter, Gauge, KPI cards, Radar, etc.). Rendered with Apache ECharts.
+- **Self-Correcting SQL** — A QA Agent (Llama 3 70B) reviews and auto-fixes generated SQL before it hits the database.
+- **Schema RAG** — Uses pgvector + LlamaIndex to find only the relevant tables before generating SQL — no full schema dumps to LLMs.
+- **Real-time Streaming** — Responses stream step-by-step via Server-Sent Events (SSE). Users see each stage as it completes.
+- **Prompt Injection Guard** — Security layer blocks prompt-injection attempts before any AI agent is invoked.
+- **Result Caching** — Redis caches query results, so repeated questions return instantly.
+- **Enterprise Security** — All queries are read-only (`SELECT`/`WITH` only). No writes, updates, or deletes are possible.
+- **Any PostgreSQL DB** — Connect to any PostgreSQL database at runtime via the connect modal (supports full connection strings including schema path).
 
 ---
 
-## Quick Start Guide
+## 📸 Screenshots
+
+**Chat Interface — Query with auto-generated SQL and KPI cards**
+
+![Data-Talk Chat View](frontend/public/eg1.png.png)
+
+**Dashboard View — Multi-chart visualization panel from a single question**
+
+![Data-Talk Dashboard View](frontend/public/eg2.html.png)
+
+---
+
+## 🏗️ Architecture
+
+```
+User (Browser)
+     │  POST /api/ask  (SSE stream)
+     ▼
+┌────────────────────────────────────────────────────┐
+│                  FastAPI Backend                   │
+│                                                    │
+│  ┌─────────┐   ┌──────────┐   ┌────────────────┐  │
+│  │ Router  │   │SQL Agent │   │   QA Agent     │  │
+│  │Llama 3  │   │Claude 3.5│   │  Llama 3 70B   │  │
+│  │  8B     │   │ Sonnet   │   │                │  │
+│  └─────────┘   └──────────┘   └────────────────┘  │
+│                                                    │
+│  ┌─────────────┐   ┌──────────┐   ┌────────────┐  │
+│  │  Visualizer │   │ Analyst  │   │  Security  │  │
+│  │ Gemini Pro  │   │Gemini Pro│   │  + Cache   │  │
+│  └─────────────┘   └──────────┘   └────────────┘  │
+│                                                    │
+│  pgvector (Schema RAG)  ←→  PostgreSQL (User DB)  │
+└────────────────────────────────────────────────────┘
+     │
+     ▼
+Next.js Frontend (Chat UI + ECharts)
+```
+
+### Pipeline Stages (per request)
+1. **Security Gate** — Blocks prompt injection
+2. **Cache Check** — Returns instantly if result is cached
+3. **Router Agent** — Classifies as `sql` or `chat`
+4. **Schema Retrieval** — pgvector finds relevant tables
+5. **SQL Agent** — Claude 3.5 generates SQL
+6. **QA Agent** — Llama 3 70B reviews and fixes SQL
+7. **SQL Execution** — Read-only query on user's DB
+8. **Visualizer Agent** — Gemini picks and configs 3-4 charts
+9. **Analyst Agent** — Gemini writes plain-English summary
+10. **Cache** — Stores result in Redis
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+| Component | Technology |
+|---|---|
+| API Framework | FastAPI (Python, async) |
+| SQL Generation | Claude 3.5 Sonnet (via OpenRouter) |
+| Router & QA | Groq — Llama 3 8B / 70B |
+| Visualization & Analysis | Google Gemini Pro |
+| Schema Search | LlamaIndex + pgvector |
+| Database Driver | SQLAlchemy + asyncpg |
+| Caching | Redis |
+
+### Frontend
+| Component | Technology |
+|---|---|
+| Framework | Next.js 14 (TypeScript, App Router) |
+| Styling | Tailwind CSS + Shadcn/UI |
+| Charts | Apache ECharts (via `echarts-for-react`) |
+| Auth | Supabase Auth |
+| State | React Context |
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+
 - Python 3.11+
-- A Google Gemini API Key ([get one here](https://aistudio.google.com/))
-- A PostgreSQL Database (to act as your target data)
+- A PostgreSQL database to connect to
+- API keys: Groq, OpenRouter, Google Gemini, Supabase
 
-### 1. Backend Setup
+### 1. Clone & configure backend
 
 ```bash
 cd backend
 python -m venv venv
-# Windows: venv\Scripts\activate
+# Windows:  venv\Scripts\activate
 # Mac/Linux: source venv/bin/activate
 
 pip install -r requirements.txt
-```
-
-**Configure Environment Variables:**
-Copy `.env.example` to `.env` and fill in your Gemini Key and PostgreSQL Database URL:
-```bash
 cp .env.example .env
+# Edit .env with your API keys and DB URL
 ```
-*(Open `.env` and configure `GEMINI_API_KEY` and `TARGET_DB_URL`)*
 
-**Run the Backend Server:**
+**`.env` keys required:**
+```env
+GROQ_API_KEY=...
+OPENROUTER_API_KEY=...
+GEMINI_API_KEY=...
+SUPABASE_URL=...
+SUPABASE_KEY=...
+```
+
+**Run the backend:**
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-### 2. Frontend Setup
+### 2. Frontend setup
 
-Open a new terminal window:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### 3. Open the Dashboard
-Navigate to **http://localhost:3000** in your browser. Start chatting with your database!
+### 3. Open the app
+
+Navigate to **http://localhost:3000** → connect your PostgreSQL database → start chatting!
 
 ---
 
-## Security Posture
+## 🔒 Security Model
 
-Because LLMs can hallucinate malicious queries (e.g. `DROP TABLE`), Data-Talk implements a rigorous multi-layer security model before query execution:
-1. **Application Layer**: `sql_executor.py` injects a hard limit (`LIMIT 1000`) into every query to prevent memory saturation.
-2. **Lexical Layer**: Hardcoded regex blocklists rejecting any query not starting with `SELECT` or `WITH`.
-3. **Database Layer**: SQLAlchemy establishes the `asyncpg` engine explicitly using `execution_options={"postgresql_readonly": True}`, making it completely impossible for the DB connection to modify schema or write data.
-
----
-
-## Team
-- **Frontend Development**: Kubendiran, Sravya
-- **Backend & AI Logic**: Divya, Rishitha, Ramya, Tamizharasan
-- **Database Management**: Abhilesha, Goel
+| Layer | Protection |
+|---|---|
+| Application | `guard_prompt()` blocks prompt injection before any AI call |
+| Lexical | Only `SELECT` and `WITH` queries are allowed — hard-coded regex |
+| Database | SQLAlchemy engine uses `postgresql_readonly: True` — makes writes impossible |
+| Limits | All queries capped at 1000 rows to prevent memory issues |
 
 ---
 
-## License
+## 📁 Project Structure
+
+```
+RAG/
+├── backend/
+│   ├── app/
+│   │   ├── agents/          ← AI agents (router, sql, qa, visualizer, analyst, orchestrator)
+│   │   ├── core/            ← DB connection, schema indexer, security, cache
+│   │   ├── routes/          ← FastAPI route handlers
+│   │   ├── config.py        ← Environment settings
+│   │   └── main.py          ← App entry point
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── app/             ← Next.js pages (chat, login, profile, auth callback)
+│   │   ├── components/      ← UI components (ChatWindow, ChartRenderer, Sidebar, etc.)
+│   │   └── lib/             ← API client, auth context, chat context
+│   └── package.json
+├── Docs/                    ← Team documentation
+│   ├── 01-system-overview.md
+│   ├── 02-agent-roles.md
+│   ├── 03-visualization-pipeline.md
+│   └── 04-data-flow.md
+└── docker-compose.yml
+```
+
+---
+
+## 📖 Documentation
+
+Full documentation for the team is in the [`Docs/`](./Docs/) folder:
+
+| File | Contents |
+|---|---|
+| [01-system-overview.md](./Docs/01-system-overview.md) | What Data-Talk is, big-picture diagram, tech table |
+| [02-agent-roles.md](./Docs/02-agent-roles.md) | Each agent's job with examples |
+| [03-visualization-pipeline.md](./Docs/03-visualization-pipeline.md) | Exact step-by-step chart generation pipeline |
+| [04-data-flow.md](./Docs/04-data-flow.md) | Full request traced start-to-finish with timestamps |
+
+---
+
+## 👥 Team
+
+| Role | Members |
+|---|---|
+| Frontend Development | Kubendiran, Sravya |
+| Backend & AI Logic | Divya, Rishitha, Ramya, Tamizharasan |
+| Database Management | Abhilesha, Goel |
+
+---
+
+## 📜 License
+
 This project is for educational and portfolio purposes.

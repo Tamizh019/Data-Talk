@@ -28,7 +28,7 @@ class SchemaIndexer:
                 c.is_nullable
             FROM information_schema.tables t
             JOIN information_schema.columns c ON t.table_name = c.table_name
-            WHERE t.table_schema = 'public'
+            WHERE t.table_schema = :schema
             AND t.table_type = 'BASE TABLE'
             ORDER BY t.table_name, c.ordinal_position;
         """)
@@ -36,7 +36,7 @@ class SchemaIndexer:
         try:
             engine = get_db_engine()
             async with engine.connect() as conn:
-                result = await conn.execute(query)
+                result = await conn.execute(query, {"schema": settings.target_schema})
                 rows = result.fetchall()
 
                 schema_map = {}

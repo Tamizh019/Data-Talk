@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # --- Target PostgreSQL Database ---
     target_db_url: str = ""
+    target_schema: str = "public"
 
     # --- Vector Store (LlamaIndex + pgvector) ---
     use_pgvector: bool = True
