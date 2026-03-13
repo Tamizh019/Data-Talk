@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, Mic, Paperclip, Zap, CheckCircle2 } from "lucide-react";
-import { streamChat, type ChatMessage, type PlotlyConfig } from "@/lib/api";
+import { streamChat, type ChatMessage, type EChartsConfig } from "@/lib/api";
 import { v4 as uuidv4 } from "uuid";
 import SQLDisplay from "./SQLDisplay";
-import ChartRenderer from "./ChartRenderer";
+import DashboardPanel from "./DashboardPanel";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { useChat } from "@/lib/chat-context";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,8 @@ export default function ChatWindow() {
         const text = input.trim();
         if (!text || isLoading || !activeId) return;
 
-        const userMsg: ChatMessage = { role: "user", content: text };
-        const asstMsg: ChatMessage = { role: "assistant", isStreaming: true };
+        const userMsg: ChatMessage = { role: "user", content: text, createdAt: Date.now() };
+        const asstMsg: ChatMessage = { role: "assistant", isStreaming: true, createdAt: Date.now(), steps: [{ label: "Connecting to agent...", status: "pending" }] };
 
         updateMessages(activeId, (p) => [...p, userMsg, asstMsg]);
         setInput("");
@@ -42,18 +42,34 @@ export default function ChatWindow() {
                 updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, sql } : m)),
             onResult: (rows, columns, rowCount, attempts) =>
                 updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, rowCount, attempts } : m)),
-            onVisualization: (config) =>
-                updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, plotlyConfig: config } : m)),
+            onVisualization: (charts) =>
+                updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, charts } : m)),
             onExplanation: (text) =>
                 updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, content: text } : m)),
-            onCached: (data: { sql?: string; plotly_config?: PlotlyConfig; explanation?: string }) =>
+            onCached: (data: { sql?: string; charts?: EChartsConfig[]; explanation?: string }) =>
                 updateMessages(activeId, (p) => p.map((m, i) =>
-                    i === p.length - 1 ? { ...m, sql: data.sql, plotlyConfig: data.plotly_config, content: data.explanation, isCached: true } : m
+                    i === p.length - 1 ? { ...m, sql: data.sql, charts: data.charts, content: data.explanation, isCached: true } : m
                 )),
             onError: (message) =>
                 updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, content: `Error: ${message}`, error: message } : m)),
+            onStep: (label) =>
+                updateMessages(activeId, (p) => p.map((m, i) => {
+                    if (i === p.length - 1) {
+                        const currentSteps = m.steps || [];
+                        const newSteps: { label: string; status: "pending" | "done" }[] = currentSteps.map(s => ({ ...s, status: "done" }));
+                        newSteps.push({ label, status: "pending" });
+                        return { ...m, steps: newSteps };
+                    }
+                    return m;
+                })),
             onDone: () => {
-                updateMessages(activeId, (p) => p.map((m, i) => i === p.length - 1 ? { ...m, isStreaming: false } : m));
+                updateMessages(activeId, (p) => p.map((m, i) => {
+                    if (i === p.length - 1) {
+                        const newSteps = (m.steps || []).map(s => ({ ...s, status: "done" as const }));
+                        return { ...m, isStreaming: false, steps: newSteps };
+                    }
+                    return m;
+                }));
                 setIsLoading(false);
             },
         });
@@ -77,9 +93,14 @@ export default function ChatWindow() {
                                 >
                                     {msg.content}
                                 </div>
-                                <span className="text-[10px] font-semibold uppercase tracking-widest mr-1" style={{ color: "rgba(255,255,255,0.2)" }}>
-                                    You
-                                </span>
+                                <div className="flex items-center gap-2 mt-1 mr-1">
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.2)" }}>You</span>
+                                    {msg.createdAt && (
+                                        <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+                                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             // ── Assistant message ─────────────────────────────
@@ -100,6 +121,11 @@ export default function ChatWindow() {
                                         <span className="text-[11px] font-bold tracking-wider uppercase" style={{ color: "#7C6FFF" }}>
                                             Analyst AI
                                         </span>
+                                        {msg.createdAt && (
+                                            <span className="text-[10px] opacity-40 ml-1 text-white pr-2">
+                                                {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        )}
                                         {msg.sql && !msg.isStreaming && (
                                             <span
                                                 className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md"
@@ -129,22 +155,26 @@ export default function ChatWindow() {
                                     </div>
 
                                     {/* Message text */}
-                                    {(msg.content || msg.isStreaming) && !msg.sql && !msg.plotlyConfig && (
+                                    {(msg.content || msg.isStreaming) && !msg.sql && !(msg.charts && msg.charts.length > 0) && (
                                         <div className="pt-1 pb-2">
-                                            {/* Loading dots */}
-                                            {msg.isStreaming && !msg.content && (
-                                                <div className="flex gap-1.5 items-center h-5">
-                                                    {[0, 1, 2].map((j) => (
-                                                        <span
-                                                            key={j}
-                                                            className="w-1.5 h-1.5 rounded-full animate-bounce"
-                                                            style={{
-                                                                background: "#4f46e5",
-                                                                animationDelay: `${j * 0.2}s`,
-                                                            }}
-                                                        />
+                                            {/* Thinking Process Steps */}
+                                            {msg.steps && msg.steps.length > 0 && (
+                                                <div className="mb-4 pl-1 space-y-2">
+                                                    {msg.steps.map((step, idx) => (
+                                                        <div key={idx} className="flex items-center gap-2.5 animate-fadein">
+                                                            {step.status === "done" ? (
+                                                                <CheckCircle2 className="w-3.5 h-3.5 text-[#34d399]" />
+                                                            ) : (
+                                                                <svg className="w-3.5 h-3.5 animate-spin text-[#7C6FFF]" fill="none" viewBox="0 0 24 24">
+                                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                                </svg>
+                                                            )}
+                                                            <span className={`text-[12px] font-medium ${step.status === "done" ? 'text-white/40' : 'text-white/90'}`}>
+                                                                {step.label}
+                                                            </span>
+                                                        </div>
                                                     ))}
-                                                    <span className="text-[12px] text-white/30 italic ml-1">Thinking about your data...</span>
                                                 </div>
                                             )}
 
@@ -168,11 +198,11 @@ export default function ChatWindow() {
                                     {/* SQL block */}
                                     {msg.sql && <SQLDisplay sql={msg.sql} attempts={msg.attempts} />}
 
-                                    {/* Plotly chart */}
-                                    {msg.plotlyConfig && <ChartRenderer config={msg.plotlyConfig} />}
+                                    {/* ECharts Dashboard */}
+                                    {msg.charts && msg.charts.length > 0 && <DashboardPanel charts={msg.charts} />}
 
                                     {/* Explanation after SQL/chart */}
-                                    {msg.content && !msg.isStreaming && (msg.sql || msg.plotlyConfig) && (
+                                    {msg.content && !msg.isStreaming && (msg.sql || (msg.charts && msg.charts.length > 0)) && (
                                         <div className="text-[14px] leading-relaxed text-white/70 prose prose-invert max-w-none px-1">
                                             <MarkdownRenderer content={msg.content} />
                                         </div>

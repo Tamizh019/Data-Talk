@@ -14,7 +14,7 @@ from app.core.cache import get_cached, set_cached
 from app.agents.router_agent import classify_intent
 from app.agents.sql_agent import generate_sql
 from app.agents.qa_agent import review_sql
-from app.agents.visualizer_agent import generate_chart
+from app.agents.visualizer_agent import generate_charts
 from app.agents.analyst_agent import explain_results, chat_fallback
 
 logger = logging.getLogger(__name__)
@@ -72,10 +72,10 @@ async def run_pipeline(user_query: str, history: list) -> AsyncGenerator[dict, N
             }
         }
 
-        # 9. Visualizer Agent (Groq Llama 3 70B)
-        chart_config = await generate_chart(columns, rows)
-        if chart_config:
-            yield {"event": "visualization", "data": {"plotly_config": chart_config}}
+        # 9. Visualizer Agent (Gemini Pro — ECharts Dashboard)
+        charts = await generate_charts(columns, rows, user_query, len(rows))
+        if charts:
+            yield {"event": "visualization", "data": {"charts": charts}}
 
         # 10. Analyst Agent (Gemini Pro)
         explanation = await explain_results(user_query, rows, columns)
@@ -86,7 +86,7 @@ async def run_pipeline(user_query: str, history: list) -> AsyncGenerator[dict, N
             "sql": sql,
             "rows": rows,
             "columns": columns,
-            "plotly_config": chart_config,
+            "charts": charts,
             "explanation": explanation,
         })
 

@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_router_model: str = "llama-3.1-8b-instant"
     groq_qa_model: str = "llama-3.3-70b-versatile"
-    groq_visualizer_model: str = "llama-3.3-70b-versatile"
     openrouter_api_key: str = ""
     openrouter_sql_model: str = "anthropic/claude-3.5-sonnet"
 

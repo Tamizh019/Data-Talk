@@ -1,32 +1,35 @@
 // SSE streaming API client for Data-Talk
 
+export interface EChartsConfig {
+    chart_type: string;
+    title?: string;
+    [key: string]: unknown;
+}
+
 export interface ChatMessage {
     role: "user" | "assistant";
     content?: string;
     sql?: string;
-    plotlyConfig?: PlotlyConfig;
+    charts?: EChartsConfig[];
     rowCount?: number;
     attempts?: number;
     isCached?: boolean;
     isStreaming?: boolean;
     error?: string;
-}
-
-export interface PlotlyConfig {
-    data: object[];
-    layout: object;
-    chart_type?: string;
+    createdAt?: number;
+    steps?: { label: string; status: "pending" | "done" }[];
 }
 
 interface StreamCallbacks {
     onIntent?: (intent: "sql" | "chat") => void;
     onSql?: (sql: string) => void;
     onResult?: (rows: object[], columns: string[], rowCount: number, attempts: number) => void;
-    onVisualization?: (config: PlotlyConfig) => void;
+    onVisualization?: (charts: EChartsConfig[]) => void;
     onExplanation?: (text: string) => void;
     onCached?: (data: object) => void;
     onError?: (message: string) => void;
     onDone?: () => void;
+    onStep?: (label: string) => void;
 }
 
 export async function streamChat(
@@ -73,16 +76,36 @@ export async function streamChat(
 
                     const event = JSON.parse(eventStr);
                     switch (event.event) {
-                        case "intent": callbacks.onIntent?.(event.intent); break;
-                        case "sql_generated": callbacks.onSql?.(event.sql); break;
+                        case "intent":
+                            callbacks.onStep?.(`Routing intent: ${event.intent}`);
+                            callbacks.onIntent?.(event.intent);
+                            break;
+                        case "sql_generated":
+                            callbacks.onStep?.("Executing optimized SQL Query");
+                            callbacks.onSql?.(event.sql);
+                            break;
                         case "query_result":
+                            callbacks.onStep?.("Analyzing Data Results");
                             callbacks.onResult?.(event.rows, event.columns, event.row_count, event.attempts);
                             break;
-                        case "visualization": callbacks.onVisualization?.(event.plotly_config); break;
-                        case "explanation": callbacks.onExplanation?.(event.text); break;
-                        case "cached_result": callbacks.onCached?.(event); break;
-                        case "error": callbacks.onError?.(event.message); break;
-                        case "done": callbacks.onDone?.(); return;
+                        case "visualization":
+                            callbacks.onStep?.("Generating Dashboard Visualizations");
+                            callbacks.onVisualization?.(event.charts);
+                            break;
+                        case "explanation":
+                            callbacks.onStep?.("Writing Business Summary");
+                            callbacks.onExplanation?.(event.text);
+                            break;
+                        case "cached_result":
+                            callbacks.onStep?.("Loaded from Cache");
+                            callbacks.onCached?.(event);
+                            break;
+                        case "error":
+                            callbacks.onError?.(event.message);
+                            break;
+                        case "done":
+                            callbacks.onDone?.();
+                            return;
                     }
                 } catch (err) {
                     console.error("Failed to parse stream event:", line, err);
@@ -126,4 +149,3 @@ export async function fetchSchema(): Promise<{ tables: SchemaTable[] }> {
     }
     return res.json();
 }
-
