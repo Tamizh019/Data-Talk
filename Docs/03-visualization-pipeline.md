@@ -5,17 +5,24 @@
 
 ---
 
-## The Setup
+## Two Visualization Paths
 
-When a user asks a data question, the database returns **raw rows** — just a table of numbers and text. The visualization pipeline's job is to turn that raw table into **meaningful, interactive charts**.
+Data-Talk now supports two distinct data paths. Which one runs depends on what the user did:
+
+| Path | Triggered When | Agent Used |
+|---|---|---|
+| **SQL Visualization** | User asks a question about a *connected database* | `visualizer_agent.py` |
+| **Document Visualization** | User uploads a *file* (PDF, resume, report, etc.) | `doc_visualizer_agent.py` |
+
+Both paths produce the same final output format — a list of typed visualization blocks that the frontend renders dynamically.
 
 ---
 
-## Step-by-Step Walkthrough
+## Path A: SQL Visualization (Database Query)
 
 ### ✅ Step 1 — SQL Runs, Data Returns
 
-The database returns something like this for the question:  
+The database returns raw rows for example for:  
 *"Show me the count of students grouped by role and gender"*
 
 | role | gender | count |
@@ -33,7 +40,7 @@ This is just a plain table. No charts yet.
 
 ### ✅ Step 2 — Column Statistics Are Computed
 
-Before calling any AI, the system **analyzes each column** automatically:
+Before calling any AI, the system **analyzes each column** automatically in Python:
 
 ```
 role   → categorical | 3 unique values: ['Student', 'Faculty', 'Staff']
@@ -41,7 +48,7 @@ gender → categorical | 2 unique values: ['Male', 'Female']
 count  → numeric     | min: 19, max: 412, avg: 142.3
 ```
 
-This analysis is fast (done in Python, no AI needed) and tells the AI model what kind of data it's working with.
+This analysis is fast (no AI needed) and tells the Visualizer what kind of data it's working with.
 
 ---
 
@@ -52,22 +59,9 @@ A detailed prompt is assembled and sent to **Gemini Pro**. It contains:
 1. The user's original question  
 2. The column analysis from Step 2  
 3. A sample of the actual data (up to 20 rows)  
-4. Instructions on what chart types are available
+4. Instructions on what chart types are available and the required output schema
 
-```
-User's question: "Show me students grouped by role and gender"
-
-Columns: ['role', 'gender', 'count']
-Column Analysis:
-  role   → categorical, 3 unique values
-  gender → categorical, 2 unique values
-  count  → numeric, min=19, max=412
-
-Sample Data:
-  [{'role': 'Student', 'gender': 'Male', 'count': 412}, ...]
-
-Generate the best 3-4 ECharts configs for this data.
-```
+The SQL Agent is also instructed to always return **flat relational data** (standard rows and columns). This is enforced deliberately — no JSON aggregation functions (`json_agg`, `json_build_object`) are allowed in generated SQL, because our multi-renderer pipeline requires a clean tabular format.
 
 ---
 
@@ -77,24 +71,21 @@ Gemini reads the prompt and chooses the best chart types. For this example:
 
 | Chart | Why chosen |
 |---|---|
-| **KPI Cards** | Show totals at a glance (Total Students, Total Faculty, etc.) |
+| **KPI Cards** | Show totals at a glance |
 | **Stacked Bar** | Role on X-axis, bars split by gender — shows both dimensions |
 | **Pie/Donut** | Overall gender split (Male vs Female) across all roles |
-
-Gemini outputs a **JSON array** with one full chart config per visualization. Each config is a complete Apache ECharts `option` object.
+| **Data Table** | Full raw tabular view for users who want to see the exact numbers |
 
 ---
 
-### ✅ Step 5 — Gemini Returns JSON (Not Images!)
+### ✅ Step 5 — Gemini Returns a Typed Block Array (Not Images!)
 
-This is an important point: **no image files are created**.
-
-Gemini returns raw JSON that looks like this (simplified):
+**No image files are created.** Gemini returns a JSON array of **typed visualization blocks**. Each block has a `library` field that tells the frontend *how* to render it:
 
 ```json
 [
   {
-    "chart_type": "kpi_card",
+    "library": "kpi",
     "title": "Total Students",
     "value": 730,
     "formatted_value": "730",
@@ -102,85 +93,117 @@ Gemini returns raw JSON that looks like this (simplified):
     "delta_direction": "up"
   },
   {
-    "chart_type": "stacked_bar",
+    "library": "echarts",
     "title": "Count by Role & Gender",
-    "xAxis": { "data": ["Student", "Faculty", "Staff"] },
-    "series": [
-      { "name": "Male",   "data": [412, 45, 28] },
-      { "name": "Female", "data": [318, 32, 19] }
-    ]
+    "config": {
+      "xAxis": { "data": ["Student", "Faculty", "Staff"] },
+      "series": [
+        { "name": "Male",   "type": "bar", "data": [412, 45, 28] },
+        { "name": "Female", "type": "bar", "data": [318, 32, 19] }
+      ]
+    }
   },
   {
-    "chart_type": "pie",
-    "title": "Overall Gender Split",
-    "series": [{
-      "data": [
-        { "name": "Male",   "value": 485 },
-        { "name": "Female", "value": 369 }
-      ]
-    }]
+    "library": "table",
+    "title": "Raw Data",
+    "columns": ["role", "gender", "count"],
+    "rows": [["Student", "Male", 412], ["Student", "Female", 318], "..."]
   }
 ]
 ```
 
----
-
-### ✅ Step 6 — Backend Validates and Sends to Frontend
-
-The backend does a quick sanity check:
-- Is it a valid JSON array?
-- Does each item have a `chart_type`?
-- Are there max 4 charts?
-
-Then it sends this array to the frontend via the API response.
+The three possible `library` values:
+| `library` value | Rendered As |
+|---|---|
+| `"kpi"` | A `KpiCard` component (large number badge with delta arrow) |
+| `"echarts"` | A `ReactECharts` interactive chart |
+| `"table"` | A `DataTable` component with sorting and pagination |
 
 ---
 
-### ✅ Step 7 — Frontend Renders the Charts
+### ✅ Step 6 — Dynamic Dispatch on the Frontend
 
-The frontend receives the JSON and uses **Apache ECharts**, a JavaScript charting library, to render each chart interactively.
+The frontend receives the typed block array and uses a **Dynamic Dispatcher** to route each block to the correct React component:
 
 ```
-JSON Config → ECharts Library → Interactive Chart in Browser
+Block { library: "kpi"     } → <KpiCard />
+Block { library: "echarts" } → <ReactECharts />
+Block { library: "table"   } → <DataTable />
 ```
 
-ECharts handles:
-- Drawing the actual bars, pies, lines
-- Hover tooltips
-- Responsive resizing
-- Animated entry effects
+This means the backend is fully in control of what gets rendered — no hardcoded layout on the frontend. If Gemini decides the answer is *only* a table, that's all the user sees. If it picks 2 KPIs and 2 charts, all 4 appear.
 
-The frontend just passes the JSON directly to ECharts — no extra processing needed.
+---
+
+## Path B: Document Visualization (File Upload)
+
+When a user uploads a **PDF, resume, report, or any text document**, the `DocVisualizerAgent` runs instead. It uses a **2-phase approach** specifically designed for unstructured documents:
+
+### Phase 1 — Extract Structured Data
+
+The raw document text is sent to Gemini with a prompt that says:  
+*"Read this document and extract the most chart-worthy data into a structured JSON object."*
+
+Gemini automatically detects the document type and extracts relevant info:
+
+**For a Resume/CV:**
+```json
+{
+  "doc_type": "resume",
+  "person_or_entity": "John Doe",
+  "role": "Full Stack Developer",
+  "skills_by_category": { "Languages": ["Python", "JavaScript"], "AI/ML": ["LangChain", "FAISS"] },
+  "projects": [{ "name": "Data-Talk", "tech": ["FastAPI", "Next.js"], "year": 2025 }],
+  "education": [{ "degree": "B.E. CSE", "institution": "XYZ University", "cgpa": 8.2 }]
+}
+```
+
+**For a Financial Report:**
+```json
+{
+  "doc_type": "financial",
+  "kpis": [{ "label": "Revenue", "value": 1200000, "unit": "USD" }],
+  "monthly_trend": [{ "month": "Jan", "revenue": 100000, "expenses": 80000 }]
+}
+```
+
+### Phase 2 — Generate Charts from Structured Data
+
+The clean structured JSON from Phase 1 is then passed back to Gemini with a visualization prompt. Gemini generates 3-4 ECharts dashboard configs tailored to the document type.
+
+**For a Resume:** Radar chart of skill categories, bar chart of project count by year, pie chart of technology usage.  
+**For a Financial Report:** Line chart of monthly trends, KPI cards for key numbers, bar chart for segment breakdown.
+
+### Why Two Phases?
+
+Raw document text is messy and unstructured — just passing it directly to a chart generator would produce poor results. The two-phase approach ensures:
+1. Data is **clean and structured** before any chart decision is made
+2. The chart generator works with **facts**, not prose
 
 ---
 
 ## Summary Diagram
 
 ```
-User Question
-     │
-     ▼
-Database runs SQL
-Returns raw rows (table)
-     │
-     ▼
-Python computes column stats
-(categorical vs numeric, min/max/avg)
-     │
-     ▼
-Build prompt → Send to Gemini Pro
-     │
-     ▼
-Gemini returns JSON array
-(3-4 ECharts config objects)
-     │
-     ▼
-Backend validates JSON
-Sends to frontend via API
-     │
-     ▼
-Frontend gives JSON to ECharts
-ECharts renders interactive charts 🎉
+User Question (Database)             User Upload (Document)
+        │                                     │
+        ▼                                     ▼
+SQL → DB returns flat rows          Phase 1: Extract structured JSON
+        │                                     │
+        ▼                                     ▼
+Python computes column stats        Phase 2: Generate chart configs
+        │                                     │
+        ▼                                     ▼
+Gemini Visualizer Agent ──────────────────────┘
+Picks chart types & builds typed block array
+[{ library: "kpi" }, { library: "echarts" }, { library: "table" }]
+        │
+        ▼
+Frontend Dynamic Dispatcher
+<KpiCard /> or <ReactECharts /> or <DataTable />
+        │
+        ▼
+Interactive dashboard rendered 🎉
 ```
 
 ---
@@ -188,17 +211,17 @@ ECharts renders interactive charts 🎉
 ## Common Questions
 
 **Q: What if the data doesn't suit charts?**  
-A: Gemini still generates KPI cards or a simple table view. It never fails silently.
+A: Gemini defaults to a `table` block. The user always gets something useful — never a blank screen.
 
-**Q: Can the user change the chart type?**  
-A: Not in the current version. Future improvement planned.
+**Q: What's the maximum number of visualizations per response?**  
+A: The agent targets 3–4 blocks per query. Running more than that clutters the dashboard and slows the response.
 
 **Q: Are charts saved?**  
-A: Results (including chart configs) are cached using Redis for a short period, so the same question returns instantly on repeat.
+A: Yes. The full result (including chart configs) is cached in Redis. The same question returns instantly on repeat, with no AI calls at all.
 
-**Q: Why Gemini for charts?**  
-A: Gemini is very good at understanding *context* — it reads both the question AND the data structure to pick charts that actually make sense together, rather than just defaulting to a bar chart every time.
+**Q: Why not use one AI for everything?**  
+A: Each model is chosen for what it does best. Groq handles fast routing decisions (~200ms). Claude writes the most accurate SQL. Gemini is best at open-ended creative generation like chart selection and document summarization.
 
 ---
 
-*Next: See [04-data-flow.md](./04-data-flow.md) for a full walkthrough of a single request from start to finish.*
+*Next: See [04-data-flow.md](./04-data-flow.md) for a full request traced from login to final result.*

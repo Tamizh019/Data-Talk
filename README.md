@@ -213,6 +213,7 @@ Full documentation for the team is in the [`Docs/`](./Docs/) folder:
 | [03-visualization-pipeline.md](./Docs/03-visualization-pipeline.md) | Exact step-by-step chart generation pipeline |
 | [04-data-flow.md](./Docs/04-data-flow.md) | Full request traced start-to-finish with timestamps |
 | [05-agent-workflow.md](./Docs/agent-workflow.md) | Full orchestration flow with data contracts between agents |
+| [06-schema-rag.md](./Docs/06-schema-rag.md) | Deep-dive: how pgvector + LlamaIndex + Gemini embeddings find the right tables per query |
 
 ---
 
@@ -222,7 +223,7 @@ Full documentation for the team is in the [`Docs/`](./Docs/) folder:
 |---|---|
 | Frontend Development | Kubendiran, Sravya |
 | Backend & AI Logic | Divya, Rishitha, Ramya, Tamizharasan |
-| Database Management | Abhilesha, Goel |
+| Database Management | Abilesha, Goel |
 
 ---
 
