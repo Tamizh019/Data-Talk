@@ -17,6 +17,7 @@ settings = get_settings()
 class SchemaIndexer:
     def __init__(self):
         self._index = None
+        self._last_table_hash = None
 
     async def fetch_db_schema(self) -> List[Dict]:
         """Fetches the database schema from the connected Postgres."""
@@ -63,17 +64,42 @@ class SchemaIndexer:
             logger.info("[SchemaIndexer] pgvector is disabled. Skipping vector indexing.")
             return
 
-        logger.info("[SchemaIndexer] Starting RAG indexing into pgvector...")
         try:
             # Lazy import - only load LlamaIndex when actually needed
             from llama_index.core import Document, VectorStoreIndex
             from app.core.vector_store import get_vector_store
             from app.core.embedder import get_embed_model
+            import hashlib
+            import json
+            import os
 
             tables = await self.fetch_db_schema()
             if not tables:
                 logger.warning("[SchemaIndexer] No tables found to index.")
                 return
+
+            current_hash = hashlib.md5(json.dumps(tables, sort_keys=True).encode()).hexdigest()
+            cache_file = os.path.join(os.path.dirname(__file__), ".schema_hash.json")
+            
+            # Check persistent disk cache
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, "r") as f:
+                        cached_data = json.load(f)
+                        if cached_data.get("hash") == current_hash:
+                            logger.info("[SchemaIndexer] Schema unchanged (disk cache match). Skipping pgvector re-indexing.")
+                            return
+                except Exception as e:
+                    logger.warning(f"Failed to read schema cache: {e}")
+            
+            logger.info("[SchemaIndexer] Starting RAG indexing into pgvector...")
+            
+            # Save new hash to disk immediately
+            try:
+                with open(cache_file, "w") as f:
+                    json.dump({"hash": current_hash}, f)
+            except Exception as e:
+                logger.warning(f"Failed to write schema cache: {e}")
 
             documents = []
             for table_data in tables:

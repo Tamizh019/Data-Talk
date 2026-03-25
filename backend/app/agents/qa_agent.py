@@ -20,6 +20,7 @@ Your review criteria:
 1. Syntax errors: Is it valid PostgreSQL?
 2. Schema validation: Do all tables and columns exist in the provided schema?
 3. Security: Does it mutate data? (Reject DROP, DELETE, UPDATE, INSERT)
+4. Multi-part requests: If the user asks for multiple things (e.g. "totals and a list"), it is PERFECTLY VALID if the SQL only returns the raw detailed rows. Do NOT reject the SQL just because it doesn't compute the totals. The downstream Visualization pipeline handles the aggregations!
 
 Respond strictly in JSON format with exactly:
 {

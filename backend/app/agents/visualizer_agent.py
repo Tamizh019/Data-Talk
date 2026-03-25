@@ -14,46 +14,41 @@ settings = get_settings()
 genai.configure(api_key=settings.gemini_api_key)
 _model = genai.GenerativeModel(settings.gemini_model)
 
-VISUALIZER_SYSTEM = """You are an Expert Data Visualization Architect.
+VISUALIZER_SYSTEM = """You are an Enterprise Data Visualization Architect.
 Your job: analyze the SQL query results and the user's business question, then generate 
-the BEST 3-4 Apache ECharts configurations to form an executive dashboard.
+the BEST 3-4 visual representations to form an executive dashboard.
 
-## Available Chart Types (pick the most insightful ones):
-1. bar           - Vertical bar chart. Best for comparisons and rankings.
-2. horizontal_bar - Horizontal bar chart. Best for long labels, top-N lists.
-3. line          - Line chart. Best for trends over time.
-4. area          - Area chart (line + filled). Best for volume trends, cumulative data.
-5. pie           - Pie/Donut chart. Best for proportions, market share (use with ≤8 categories).
-6. scatter       - Scatter plot. Best for correlations, distributions.
-7. heatmap       - Heatmap grid. Best for matrix data, time × category intensity.
-8. radar         - Radar/spider chart. Best for multi-dimensional comparison of few items.
-9. treemap       - Treemap. Best for hierarchical proportions.
-10. funnel       - Funnel chart. Best for conversion pipelines, staged processes.
-11. gauge        - Gauge meter. Best for KPI single values, target vs actual.
-12. kpi_card     - A KPI scorecard (not a chart). Returns a big number + label + optional delta.
-13. boxplot      - Box plot. Best for statistical distribution analysis.
-14. waterfall    - Waterfall chart. Best for showing incremental +/- changes.
-15. stacked_bar  - Stacked bar chart. Best for composition across groups.
+## Available Render Libraries & Chart Types
+You MUST return an array of JSON objects. Each object MUST have a `library` and `config` field.
+
+1. ECharts (`"library": "echarts"`)
+   Best for visualizations. Choose one of:
+   - bar, horizontal_bar, line, area, pie (≤8 categories), scatter, heatmap, radar, treemap, funnel, waterfall, stacked_bar
+   - Format: `{ "library": "echarts", "chart_type": "line", "title": "...", "config": { ...echarts_option... } }`
+   - Use professional dark theme colors: ["#7C6FFF", "#00C9B1", "#FF6B6B", "#FFD93D", "#6BCB77"]
+
+2. Data Table (`"library": "table"`)
+   Best for showing exact lists, unaggregated thousands of rows, or detailed leaderboards that don't fit in a chart.
+   - Format: `{ "library": "table", "title": "Raw Data Breakdown", "config": { "columns": ["Col1", "Col2"], "data": [["Val1", "Val2"], ...] } }`
+
+3. KPI Scorecard (`"library": "kpi"`)
+   Best for a single big number to highlight the primary finding.
+   - Format: `{ "library": "kpi", "title": "Total Revenue", "config": { "value": 12345, "formatted_value": "$12,345", "delta": "+12%", "delta_direction": "up" } }`
 
 ## Rules:
-- Select 3-4 chart types that give the MOST INSIGHT for this specific data.
-- Each chart config must be a COMPLETE, self-contained Apache ECharts `option` object.
-- Use professional dark theme colors. Base palette: ["#7C6FFF", "#00C9B1", "#FF6B6B", "#FFD93D", "#6BCB77", "#4D96FF", "#FF922B", "#CC5DE8"].
-- Set backgroundColor to "transparent" (the frontend card handles background).
-- Include proper titles, legends, tooltips, and axis labels.
-- For kpi_card type: return { "chart_type": "kpi_card", "title": "...", "value": 12345, "formatted_value": "$12,345", "delta": "+12.5%", "delta_direction": "up"|"down"|"neutral" }
-- For ALL other types: return a complete ECharts option JSON with a "chart_type" field added.
-- Make charts visually stunning: use gradients for bars/areas, smooth curves for lines, proper spacing.
-- Ensure all data values map correctly from the provided rows/columns.
+- If the user explicitly asks for a specific chart type (like a pie chart, scatter plot, or table), prioritize creating exactly what they asked for!
+- If the user asks an open-ended question, pick a mix of libraries! Include a KPI if there is a main metric, an EChart for trends/distribution, and a Data Table if the raw rows are interesting.
+- ECharts configs must be self-contained `option` objects. Set backgroundColor to "transparent".
+- ALL data values must directly come from the provided rows. NEVER make up data.
 
 ## Response Format (strict JSON array):
 [
-  { "chart_type": "gauge", "title": "...", ...echarts_option... },
-  { "chart_type": "bar", "title": "...", ...echarts_option... },
-  { "chart_type": "line", "title": "...", ...echarts_option... }
+  { "library": "kpi", "title": "Total Profit", "config": { "value": 150, "formatted_value": "$150" } },
+  { "library": "echarts", "chart_type": "bar", "title": "Revenue by Region", "config": { "xAxis": {...}, "series": [...] } },
+  { "library": "table", "title": "Store List", "config": { "columns": ["Store", "Rev"], "data": [["A", 50]] } }
 ]
 
-Only output the JSON array. NO markdown, NO explanation, NO code fences.
+Output ONLY valid JSON. NO markdown fences or explanation.
 """
 
 
@@ -166,15 +161,35 @@ Generate the best 3-4 ECharts dashboard configurations for this data:"""
                 charts = [charts]
 
         # Filter out invalid entries and cap at 4
+        # Perform schema validation
         valid_charts = []
         for chart in charts[:4]:
-            if isinstance(chart, dict) and chart.get("chart_type"):
+            if not isinstance(chart, dict):
+                continue
+                
+            # Legacy format support (just ECharts)
+            if "library" not in chart and "chart_type" in chart:
+                if chart["chart_type"] == "kpi_card":
+                    valid_charts.append({
+                        "library": "kpi",
+                        "title": chart.get("title", "KPI"),
+                        "config": chart
+                    })
+                else:
+                    valid_charts.append({
+                        "library": "echarts",
+                        "chart_type": chart["chart_type"],
+                        "title": chart.get("title", "Chart"),
+                        "config": {k: v for k, v in chart.items() if k not in ("chart_type", "title", "library")}
+                    })
+            # New format validation
+            elif "library" in chart and "config" in chart:
                 valid_charts.append(chart)
 
         if not valid_charts:
             return None
 
-        logger.info(f"[VisualizerAgent] Generated {len(valid_charts)} charts: {[c.get('chart_type') for c in valid_charts]}")
+        logger.info(f"[VisualizerAgent] Generated {len(valid_charts)} charts: {[c.get('library') for c in valid_charts]}")
         return valid_charts
 
     except Exception as e:

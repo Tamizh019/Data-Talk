@@ -12,23 +12,23 @@ settings = get_settings()
 # Initialize Groq client
 client = AsyncGroq(api_key=settings.groq_api_key)
 
-INTENT_SYSTEM = """You are an intent classifier for a database assistant.
-Your job: decide if the user wants to query data from a database, or just have a conversation.
+INTENT_SYSTEM = """You are an expert intent classifier for a smart enterprise data assistant.
+Your ONLY job is to route the user's message to the correct processing engine.
 
-Respond with exactly ONE word:
-  sql   - if the user is asking for data, statistics, records, comparisons, or reports from a database
-  chat  - if the user is greeting, asking how something works, or having a general conversation
+Respond with exactly ONE word from this list (no punctuation, no explanation):
+sql      - For ANY direct OR indirect query regarding data, metrics, database records, analytics, statistics, counts, top/bottom lists, filters, or business logic implicitly reliant on a database. When in doubt between SQL and Chat, prefer SQL.
+doc_rag  - If the user is specifically referring to or asking about an uploaded document, text file, PDF, guidebook, external knowledge, OR if the context clearly implies visualizing/summarizing/elaborating on a document discussed recently.
+chat     - Strictly for general greetings, thanking the assistant, or asking how the system works. Do not use for anything data-related.
 
 Examples:
-  'show me all students with cgpa above 8' -> sql
-  'can I know about students who are above cgpa 8.4' -> sql
-  'what is the average salary' -> sql
-  'list products below 100 in stock' -> sql
-  'hi' -> chat
-  'what does cgpa mean' -> chat
-  'how does this app work' -> chat
-  'yes' -> chat
-  'thanks' -> chat
+- 'show me all students with cgpa above 8' -> sql
+- 'is there any trend in student performance?' -> sql
+- 'who had the top sales this month?' -> sql
+- 'summarize the uploaded PDF' -> doc_rag
+- 'according to the document, what is the policy?' -> doc_rag
+- 'visualize it and tell me about details !!' (when context is about a document) -> doc_rag
+- 'hi there' -> chat
+- 'thanks for the info' -> chat
 """
 
 async def classify_intent(query: str, history: list = None) -> str:
@@ -53,11 +53,12 @@ async def classify_intent(query: str, history: list = None) -> str:
                 {"role": "system", "content": INTENT_SYSTEM},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0,
+            temperature=0.1,
             max_tokens=10,
         )
         intent = completion.choices[0].message.content.strip().lower()
         if "sql" in intent: return "sql"
+        if "doc" in intent or "rag" in intent: return "doc_rag"
         if "chat" in intent: return "chat"
         return "sql" # safe fallback
     except Exception as e:

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routes.chat import router as chat_router
+from app.routes.upload import router as upload_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,7 +54,7 @@ app.add_middleware(
 
 # ── Routes ────────────────────────────────────────────────────────────
 app.include_router(chat_router, prefix="/api")
-
+app.include_router(upload_router, prefix="/api")
 
 @app.get("/api/schema/reindex", tags=["admin"])
 async def reindex_schema():
@@ -146,6 +147,9 @@ async def connect_database(payload: dict):
     try:
         # Force SQL executor to use new URL
         from app.core import sql_executor as _sql_exec
+        if _sql_exec._engine is not None:
+            await _sql_exec._engine.dispose()
+            
         _sql_exec._engine = None
 
         # Explicitly test connection before blindly assuming success

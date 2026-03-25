@@ -1,781 +1,2818 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Data-Talk AI — Prototype</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data-Talk AI — Prototype</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-  :root {
-    --bg: #07070d;
-    --bg2: #0e0e1a;
-    --bg3: #13131f;
-    --border: rgba(255,255,255,0.07);
-    --accent: #7C6FFF;
-    --accent2: #00D8B4;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --user-bubble: #4f46e5;
-    --card-bg: rgba(7,7,13,0.8);
-    --sql-bg: rgba(13,13,26,0.9);
-    --kpi-value-from: #e2e8f0;
-  }
+    :root {
+      --bg: #07070d;
+      --bg2: #0e0e1a;
+      --bg3: #13131f;
+      --border: rgba(255, 255, 255, 0.07);
+      --accent: #7C6FFF;
+      --accent2: #00D8B4;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --user-bubble: #4f46e5;
+      --card-bg: rgba(7, 7, 13, 0.8);
+      --sql-bg: rgba(13, 13, 26, 0.9);
+      --kpi-value-from: #e2e8f0;
+    }
 
-  /* ── Light mode overrides ──────────────────────── */
-  html.light {
-    --bg: #f0f4ff;
-    --bg2: #ffffff;
-    --bg3: #f1f5fd;
-    --border: rgba(0,0,0,0.08);
-    --accent: #5b52d9;
-    --accent2: #00a88e;
-    --text: #0f172a;
-    --muted: #64748b;
-    --user-bubble: #5b52d9;
-    --card-bg: rgba(255,255,255,0.9);
-    --sql-bg: #f8faff;
-    --kpi-value-from: #1e293b;
-  }
+    /* ── Light mode overrides ──────────────────────── */
+    html.light {
+      --bg: #f0f4ff;
+      --bg2: #ffffff;
+      --bg3: #f1f5fd;
+      --border: rgba(0, 0, 0, 0.08);
+      --accent: #5b52d9;
+      --accent2: #00a88e;
+      --text: #0f172a;
+      --muted: #64748b;
+      --user-bubble: #5b52d9;
+      --card-bg: rgba(255, 255, 255, 0.9);
+      --sql-bg: #f8faff;
+      --kpi-value-from: #1e293b;
+    }
 
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; transition: background .3s, color .3s; }
+    html,
+    body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      transition: background .3s, color .3s;
+      /* Native mobile feel */
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
 
-  /* ── Layout ───────────────────────────────────── */
-  .app { display: flex; flex-direction: column; height: 100vh; }
-  .app-body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+    button,
+    input {
+      -webkit-tap-highlight-color: transparent;
+    }
 
-  /* ── Left Sidebar ─────────────────────────────── */
-  .sidebar {
-    width: 220px; min-width: 220px; background: var(--bg2);
-    border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; padding: 16px 12px; gap: 12px;
-    transition: background .3s, border-color .3s;
-  }
-  .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--text); padding: 4px 0 8px; }
-  .logo svg { width: 28px; height: 28px; }
-  .new-chat-btn {
-    display: flex; align-items: center; gap: 6px; background: rgba(124,111,255,0.1);
-    border: 1px solid rgba(124,111,255,0.3); border-radius: 8px; padding: 8px 12px;
-    color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer;
-    transition: all .2s; width: 100%;
-  }
-  .new-chat-btn:hover { background: rgba(124,111,255,0.2); }
-  .section-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 4px 4px 2px; }
-  .chat-item {
-    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px;
-    font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; transition: all .18s;
-  }
-  .chat-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
-  .chat-item.active { background: rgba(124,111,255,0.12); color: var(--accent); font-weight: 500; }
-  .chat-item svg { flex-shrink: 0; opacity: .5; }
-  .sidebar-bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
-  .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #7C6FFF, #00D8B4); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
-  .user-info { flex: 1; overflow: hidden; }
-  .user-info .name { font-size: 12px; font-weight: 600; }
-  .user-info .email { font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    input {
+      user-select: text;
+      -webkit-user-select: text;
+    }
 
-  /* ── Main ─────────────────────────────────────── */
-  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+    /* ── Layout ───────────────────────────────────── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
 
-  /* ── Topbar ───────────────────────────────────── */
-  .topbar {
-    height: 52px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 20px; background: var(--bg2); flex-shrink: 0; transition: background .3s;
-  }
-  .topbar-title { font-size: 13px; font-weight: 500; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-  .topbar-title span { color: var(--text); }
-  .connected-badge {
-    display: flex; align-items: center; gap: 6px; background: rgba(0,216,180,0.1);
-    border: 1px solid rgba(0,216,180,0.3); border-radius: 20px; padding: 4px 12px;
-    font-size: 11px; font-weight: 600; color: var(--accent2);
-  }
-  .connected-badge::before { content: ''; width: 7px; height: 7px; background: var(--accent2); border-radius: 50%; display: block; animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
-  .topbar-actions { display: flex; gap: 8px; align-items: center; }
-  .icon-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; color: var(--muted); background: rgba(255,255,255,0.03); border: 1px solid var(--border); transition: all .18s; }
-  .icon-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .app-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
 
-  /* ── Chat Area ────────────────────────────────── */
-  .chat-area { flex: 1; overflow-y: auto; padding: 28px 0; display: flex; flex-direction: column; gap: 28px; transition: background .3s; }
-  .chat-area::-webkit-scrollbar { width: 5px; }
-  .chat-area::-webkit-scrollbar-track { background: transparent; }
-  .chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
+    /* ── Left Sidebar ─────────────────────────────── */
+    .sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 12px;
+      gap: 12px;
+      transition: background .3s, border-color .3s;
+    }
 
-  /* ── Messages ─────────────────────────────────── */
-  .message { padding: 0 40px; display: flex; flex-direction: column; gap: 14px; width: 100%; }
-  .user-msg { align-items: flex-end; }
-  .user-bubble {
-    max-width: 65%; background: var(--user-bubble);
-    border-radius: 18px 18px 4px 18px; padding: 12px 20px;
-    font-size: 13.5px; line-height: 1.6; color: #fff;
-  }
-  .msg-time { font-size: 10px; color: var(--muted); }
-  .ai-msg { align-items: flex-start; }
-  .ai-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-  .ai-avatar { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #7C6FFF, #00D8B4); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .ai-label { font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--accent); }
-  .ai-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
-    border-radius: 20px; font-size: 10px; font-weight: 600;
-  }
-  .badge-green { background: rgba(0,216,180,0.12); color: var(--accent2); border: 1px solid rgba(0,216,180,0.2); }
-  .badge-blue { background: rgba(96,165,250,0.12); color: #60a5fa; border: 1px solid rgba(96,165,250,0.2); }
-  .ai-text { font-size: 13.5px; line-height: 1.8; color: #b0bcd4; max-width: 100%; }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--text);
+      padding: 4px 0 8px;
+    }
 
-  /* ── SQL Block ────────────────────────────────── */
-  .sql-block {
-    background: var(--sql-bg); border: 1px solid var(--border);
-    border-radius: 12px; overflow: hidden; max-width: 100%; transition: background .3s;
-  }
-  .sql-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 16px; border-bottom: 1px solid var(--border);
-    background: rgba(255,255,255,0.02);
-  }
-  .sql-title { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--accent); }
-  .sql-actions { display: flex; gap: 6px; }
-  .sql-action-btn {
-    font-size: 10px; padding: 3px 10px; border-radius: 5px; cursor: pointer; font-weight: 500;
-    background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--muted);
-    transition: all .18s;
-  }
-  .sql-action-btn:hover { color: var(--text); background: rgba(255,255,255,0.07); }
-  .sql-code { padding: 14px 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7; color: #a5b4fc; }
-  .sql-kw { color: #c084fc; } .sql-fn { color: #67e8f9; } .sql-str { color: #86efac; }
+    .logo svg {
+      width: 28px;
+      height: 28px;
+    }
 
-  /* ── Dashboard ────────────────────────────────── */
-  .dashboard-header {
-    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
-    font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--accent2);
-  }
-  .dashboard-header::before { content: '▲'; font-size: 8px; }
-  .kpi-grid { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
-  .kpi-card {
-    flex: 1; min-width: 160px;
-    background: var(--card-bg); border: 1px solid var(--border);
-    border-radius: 14px; padding: 24px 20px;
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
-    backdrop-filter: blur(16px); transition: background .3s, border-color .3s;
-  }
-  .kpi-label { font-size: 9px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; color: var(--accent); }
-  .kpi-value { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, #e2e8f0, #7C6FFF); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .kpi-sub { font-size: 11px; color: var(--muted); }
-  .kpi-delta-up { color: #34d399; font-size: 12px; font-weight: 600; }
-  .kpi-delta-down { color: #f87171; font-size: 12px; font-weight: 600; }
-  /* Two-col grid for charts with space; single col for explicit .one */
-  .charts-grid { display: flex; flex-direction: column; gap: 14px; width: 100%; }
-  .charts-grid.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .charts-grid.one { display: flex; flex-direction: column; gap: 14px; }
-  .chart-card {
-    background: var(--card-bg); border: 1px solid var(--border);
-    border-radius: 14px; overflow: hidden; backdrop-filter: blur(16px);
-    width: 100%; transition: background .3s, border-color .3s;
-  }
-  .chart-card-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px 8px; border-bottom: 1px solid rgba(255,255,255,0.04);
-  }
-  .chart-card-title { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #94a3b8; }
-  .chart-card-title::before { content: '↗'; color: var(--accent2); font-size: 10px; }
-  .chart-type-badge {
-    font-size: 9px; padding: 2px 7px; border-radius: 4px;
-    background: rgba(124,111,255,0.1); border: 1px solid rgba(124,111,255,0.2); color: var(--accent);
-  }
-  .chart-body { width: 100%; min-height: 300px; }
+    .new-chat-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(124, 111, 255, 0.1);
+      border: 1px solid rgba(124, 111, 255, 0.3);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      width: 100%;
+    }
 
-  /* ── Input Bar ────────────────────────────────── */
-  .input-area { padding: 12px 28px 16px; border-top: 1px solid var(--border); flex-shrink: 0; width: 100%; }
-  .input-bar {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--bg3); border: 1px solid var(--border);
-    border-radius: 14px; padding: 10px 16px; transition: border-color .2s;
-  }
-  .input-bar:focus-within { border-color: rgba(124,111,255,0.4); }
-  .input-bar input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 13px; font-family: 'Inter', sans-serif; }
-  .input-bar input::placeholder { color: var(--muted); }
-  .send-btn {
-    width: 34px; height: 34px; border-radius: 10px;
-    background: var(--accent); display: flex; align-items: center; justify-content: center;
-    cursor: pointer; border: none; color: #fff; transition: all .2s;
-  }
-  .send-btn:hover { opacity: .85; transform: scale(1.05); }
-  .quick-btns { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
-  .quick-btn {
-    font-size: 11px; padding: 5px 14px; border-radius: 20px;
-    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-    color: var(--muted); cursor: pointer; font-family: 'Inter', sans-serif; transition: all .18s;
-  }
-  .quick-btn:hover { color: var(--text); border-color: rgba(124,111,255,0.4); background: rgba(124,111,255,0.08); }
-  .powered { text-align: center; font-size: 10px; color: rgba(100,116,139,0.5); margin-top: 8px; }
+    .new-chat-btn:hover {
+      background: rgba(124, 111, 255, 0.2);
+    }
 
-  /* ── Right Sidebar ────────────────────────────── */
-  .right-sidebar {
-    width: 210px; min-width: 210px; background: var(--bg2);
-    border-left: 1px solid var(--border);
-    display: flex; flex-direction: column; padding: 18px 16px; gap: 6px;
-  }
-  .rs-header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; }
-  .rs-group-label { font-size: 12px; font-weight: 600; color: var(--text); padding: 8px 0 4px; display: flex; align-items: center; gap: 7px; }
-  .rs-group-label::before { content: '▸'; color: var(--accent2); font-size: 11px; }
-  .rs-table { display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 16px; border-radius: 7px; font-size: 12px; color: var(--muted); cursor: pointer; transition: all .18s; }
-  .rs-table:hover { background: rgba(255,255,255,0.04); color: var(--text); }
-  .rs-table svg { flex-shrink: 0; }
-  .refresh-btn {
-    margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 6px;
-    font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--muted); cursor: pointer; padding: 10px 0;
-    border-top: 1px solid var(--border); transition: color .18s;
-  }
-  .refresh-btn:hover { color: var(--text); }
-</style>
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 4px 4px 2px;
+    }
+
+    .chat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all .18s;
+    }
+
+    .chat-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    .chat-item.active {
+      background: rgba(124, 111, 255, 0.12);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .chat-item svg {
+      flex-shrink: 0;
+      opacity: .5;
+    }
+
+    .sidebar-bottom {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7C6FFF, #00D8B4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .user-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .user-info .name {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .user-info .email {
+      font-size: 10px;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Main ─────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    /* ── Topbar ───────────────────────────────────── */
+    .topbar {
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: var(--bg2);
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+
+    .topbar-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .topbar-title span {
+      color: var(--text);
+    }
+
+    .connect-db-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .2s;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .connect-db-btn:hover {
+      border-color: rgba(124, 111, 255, 0.4);
+      color: var(--text);
+      background: rgba(124, 111, 255, 0.08);
+    }
+
+    .connect-db-btn .dot {
+      width: 7px;
+      height: 7px;
+      background: #f87171;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: .4;
+      }
+    }
+
+    /* ── Connect DB Modal ─────────────────────────────── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      background: #11111e;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      width: 480px;
+      max-width: calc(100vw - 32px);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+      animation: modalIn .2s ease;
+    }
+
+    html.light .modal {
+      background: #1a1a2e;
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: scale(.96);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .modal-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #7C6FFF, #00D8B4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .modal-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .modal-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted);
+      flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      transition: all .18s;
+    }
+
+    .modal-close:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-tabs {
+      display: flex;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .modal-tab {
+      flex: 1;
+      text-align: center;
+      padding: 8px 0;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--muted);
+      transition: all .2s;
+    }
+
+    .modal-tab.active {
+      background: #2a2a4a;
+      color: var(--text);
+    }
+
+    .modal-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .field-input {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color .2s;
+      width: 100%;
+    }
+
+    .field-input:focus {
+      border-color: rgba(124, 111, 255, 0.5);
+    }
+
+    .modal-info {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .modal-info-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .modal-info-item::before {
+      content: '◆';
+      color: var(--accent2);
+      font-size: 8px;
+      flex-shrink: 0;
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .modal-cancel {
+      padding: 9px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all .18s;
+    }
+
+    .modal-cancel:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-connect {
+      padding: 9px 22px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #7C6FFF, #5b47e0);
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all .2s;
+    }
+
+    .modal-connect:hover {
+      opacity: .88;
+      transform: translateY(-1px);
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      transition: all .18s;
+    }
+
+    .icon-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    /* ── Chat Area ────────────────────────────────── */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      transition: background .3s;
+    }
+
+    .chat-area::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .chat-area::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-area::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+    }
+
+    /* ── Messages ─────────────────────────────────── */
+    .message {
+      padding: 0 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .user-msg {
+      align-items: flex-end;
+    }
+
+    .user-bubble {
+      max-width: 65%;
+      background: var(--user-bubble);
+      border-radius: 18px 18px 4px 18px;
+      padding: 12px 20px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: #fff;
+    }
+
+    .msg-time {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .ai-msg {
+      align-items: flex-start;
+    }
+
+    .ai-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .ai-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #7C6FFF, #00D8B4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .ai-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      color: var(--accent);
+    }
+
+    .ai-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .badge-green {
+      background: rgba(0, 216, 180, 0.12);
+      color: var(--accent2);
+      border: 1px solid rgba(0, 216, 180, 0.2);
+    }
+
+    .badge-blue {
+      background: rgba(96, 165, 250, 0.12);
+      color: #60a5fa;
+      border: 1px solid rgba(96, 165, 250, 0.2);
+    }
+
+    .ai-text {
+      font-size: 13.5px;
+      line-height: 1.8;
+      color: #b0bcd4;
+      max-width: 100%;
+    }
+
+    /* ── SQL Block ────────────────────────────────── */
+    .sql-block {
+      background: var(--sql-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 100%;
+      transition: background .3s;
+    }
+
+    .sql-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .sql-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      color: var(--accent);
+    }
+
+    .sql-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .sql-action-btn {
+      font-size: 10px;
+      padding: 3px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 500;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      transition: all .18s;
+    }
+
+    .sql-action-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .sql-code {
+      padding: 14px 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: #a5b4fc;
+    }
+
+    .sql-kw {
+      color: #c084fc;
+    }
+
+    .sql-fn {
+      color: #67e8f9;
+    }
+
+    .sql-str {
+      color: #86efac;
+    }
+
+    /* ── Dashboard ────────────────────────────────── */
+    .dashboard-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .12em;
+      color: var(--accent2);
+    }
+
+    .dashboard-header::before {
+      content: '▲';
+      font-size: 8px;
+    }
+
+    .kpi-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .kpi-card {
+      flex: 1;
+      min-width: 160px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(16px);
+      transition: background .3s, border-color .3s;
+    }
+
+    .kpi-label {
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .kpi-value {
+      font-size: 36px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #e2e8f0, #7C6FFF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .kpi-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .kpi-delta-up {
+      color: #34d399;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .kpi-delta-down {
+      color: #f87171;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Two-col grid for charts with space; single col for explicit .one */
+    .charts-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .charts-grid.two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .charts-grid.one {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      backdrop-filter: blur(16px);
+      width: 100%;
+      transition: background .3s, border-color .3s;
+    }
+
+    .chart-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .chart-card-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      color: #94a3b8;
+    }
+
+    .chart-card-title::before {
+      content: '↗';
+      color: var(--accent2);
+      font-size: 10px;
+    }
+
+    .chart-type-badge {
+      font-size: 9px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(124, 111, 255, 0.1);
+      border: 1px solid rgba(124, 111, 255, 0.2);
+      color: var(--accent);
+    }
+
+    .chart-body {
+      width: 100%;
+      min-height: 300px;
+    }
+
+    /* ── Input Bar ────────────────────────────────── */
+    .input-area {
+      padding: 12px 28px 16px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      width: 100%;
+    }
+
+    .input-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px 16px;
+      transition: border-color .2s;
+    }
+
+    .input-bar:focus-within {
+      border-color: rgba(124, 111, 255, 0.4);
+    }
+
+    .input-bar input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .input-bar input::placeholder {
+      color: var(--muted);
+    }
+
+    .send-btn {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border: none;
+      color: #fff;
+      transition: all .2s;
+    }
+
+    .send-btn:hover {
+      opacity: .85;
+      transform: scale(1.05);
+    }
+
+    .quick-btns {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .quick-btn {
+      font-size: 11px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all .18s;
+    }
+
+    .quick-btn:hover {
+      color: var(--text);
+      border-color: rgba(124, 111, 255, 0.4);
+      background: rgba(124, 111, 255, 0.08);
+    }
+
+    .powered {
+      text-align: center;
+      font-size: 10px;
+      color: rgba(100, 116, 139, 0.5);
+      margin-top: 8px;
+    }
+
+    /* ── Right Sidebar ────────────────────────────── */
+    .right-sidebar {
+      width: 210px;
+      min-width: 210px;
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 18px 16px;
+      gap: 6px;
+    }
+
+    .rs-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+
+    .rs-group-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      padding: 8px 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .rs-group-label::before {
+      content: '▸';
+      color: var(--accent2);
+      font-size: 11px;
+    }
+
+    .rs-table {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px 7px 16px;
+      border-radius: 7px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .18s;
+    }
+
+    .rs-table:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    .rs-table svg {
+      flex-shrink: 0;
+    }
+
+    .refresh-btn {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 10px 0;
+      border-top: 1px solid var(--border);
+      transition: color .18s;
+    }
+
+    .refresh-btn:hover {
+      color: var(--text);
+    }
+
+    /* ══════════════════════════════════════════════
+     ── MOBILE RESPONSIVE (≤ 768px) ──
+     ══════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+
+      html,
+      body {
+        overflow-x: hidden !important;
+        position: relative;
+        width: 100%;
+        max-width: 100vw;
+        overscroll-behavior-x: none;
+      }
+
+      .app {
+        max-width: 100vw;
+        overflow-x: hidden;
+      }
+
+      /* Topbar — compact */
+      .topbar {
+        padding: 0 14px;
+        height: 52px;
+        position: relative;
+        z-index: 100;
+        max-width: 100vw;
+      }
+
+      .topbar-title span {
+        font-size: 12px;
+        max-width: 120px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Show connect-db-btn on mobile as compact pill */
+      .connect-db-btn {
+        display: flex !important;
+        padding: 4px 10px;
+        font-size: 10px;
+        gap: 5px;
+      }
+
+      .icon-btn:not(#themeToggle):not(#menuToggle) {
+        display: none;
+      }
+
+      #menuToggle {
+        display: flex !important;
+      }
+
+      /* App body — full width to main only */
+      .app-body {
+        position: relative;
+        overflow-x: hidden;
+        width: 100%;
+      }
+
+      .sidebar {
+        position: fixed;
+        left: -240px;
+        top: 0;
+        bottom: 0;
+        width: 240px;
+        z-index: 200;
+        transition: left .28s cubic-bezier(.4, 0, .2, 1);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+        padding-top: 60px;
+      }
+
+      .sidebar.open {
+        left: 0;
+      }
+
+      .right-sidebar {
+        display: none;
+      }
+
+      /* Main — full width */
+      .main {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden !important;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Chat area — scrollable, leaves room for input bar + bottom nav */
+      .chat-area {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden !important;
+        padding: 16px 0 12px;
+        gap: 20px;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .message {
+        padding: 0 14px;
+        gap: 10px;
+      }
+
+      /* User bubble takes more width on mobile */
+      .user-bubble {
+        max-width: 85%;
+        font-size: 13px;
+      }
+
+      .ai-text {
+        font-size: 13px;
+        line-height: 1.7;
+      }
+
+      /* Charts: always single column on mobile */
+      .charts-grid.two {
+        display: flex !important;
+        flex-direction: column !important;
+      }
+
+      .chart-body {
+        min-height: 240px !important;
+      }
+
+      .kpi-card {
+        min-width: 120px;
+        padding: 16px 12px;
+      }
+
+      .kpi-value {
+        font-size: 28px;
+      }
+
+      /* SQL block */
+      .sql-code {
+        font-size: 11px;
+        padding: 10px 12px;
+        overflow-x: auto;
+      }
+
+      /* Input area — pinned above bottom nav */
+      .input-area {
+        flex-shrink: 0;
+        position: sticky;
+        bottom: calc(58px + env(safe-area-inset-bottom));
+        z-index: 95;
+        padding: 10px 14px;
+        background: var(--bg);
+        border-top: 1px solid var(--border);
+        width: 100%;
+        box-sizing: border-box;
+        max-width: 100vw;
+      }
+
+      .input-bar {
+        border-radius: 16px;
+        padding: 10px 14px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .input-bar input {
+        font-size: 14px;
+        min-width: 0;
+        width: 100%;
+      }
+
+      .send-btn {
+        width: 38px;
+        height: 38px;
+        flex-shrink: 0;
+      }
+
+      .quick-btns {
+        display: none;
+      }
+
+      .powered {
+        display: none;
+      }
+
+      /* Bottom Nav Bar */
+      .bottom-nav {
+        display: flex;
+        z-index: 100;
+      }
+
+      /* Modal — center on mobile */
+      .modal-backdrop {
+        align-items: center;
+        padding: 16px;
+      }
+
+      .modal {
+        width: 100%;
+        border-radius: 16px;
+        padding: 24px 20px;
+        max-height: 85vh;
+        overflow-y: auto;
+      }
+
+      .modal-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Drawer overlay */
+    .drawer-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      z-index: 150;
+      backdrop-filter: blur(2px);
+    }
+
+    .drawer-overlay.open {
+      display: block;
+    }
+
+    /* Bottom Nav (hidden on desktop) */
+    .bottom-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: calc(58px + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      z-index: 90;
+      align-items: center;
+      justify-content: space-around;
+    }
+
+    .nav-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 8px 0;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      transition: color .18s;
+      min-height: 44px;
+    }
+
+    .nav-item.active,
+    .nav-item:active {
+      color: var(--accent);
+    }
+
+    .nav-item svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* ── Fullscreen Login Overlay ──────────────────── */
+    #loginScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #0B0E14;
+      /* Deep dark blue gradient background */
+      background: radial-gradient(circle at center, #0B0E14 0%, #05060A 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.4s ease, visibility 0.4s;
+      overflow: hidden;
+    }
+
+    /* Soft teal ambient glow behind card */
+    #loginScreen::before {
+      content: '';
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(124, 111, 255, 0.18) 0%, transparent 60%);
+      pointer-events: none;
+      animation: glowPulse 8s ease-in-out infinite alternate;
+    }
+
+    @keyframes glowPulse {
+      from {
+        transform: scale(0.9);
+        opacity: 0.6;
+      }
+
+      to {
+        transform: scale(1.1);
+        opacity: 1;
+      }
+    }
+
+    #loginScreen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .login-card {
+      position: relative;
+      z-index: 1;
+      background: rgba(18, 22, 29, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      /* outer glass border */
+      border-radius: 16px;
+      padding: 40px;
+      width: calc(100% - 32px);
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+      /* very subtle top highlight */
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+    }
+
+    /* Inner glowing edge */
+    .login-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      padding: 1px;
+      /* thickness of the glow border */
+      background: linear-gradient(135deg, rgba(124, 111, 255, 0.4) 0%, transparent 40%, transparent 60%, rgba(139, 92, 246, 0.2) 100%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .login-logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: rgba(124, 111, 255, 0.15);
+      border: 1px solid rgba(124, 111, 255, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      box-shadow: 0 0 28px rgba(124, 111, 255, 0.25);
+    }
+
+    .login-logo svg {
+      color: #00D8B4;
+      width: 32px;
+      height: 32px;
+    }
+
+    .login-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .login-sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .login-divider {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: rgba(255, 255, 255, 0.2);
+      text-transform: uppercase;
+    }
+
+    .login-divider::before,
+    .login-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .login-btn-outline {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+      margin-bottom: 12px;
+    }
+
+    .login-btn-outline:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .login-btn-primary {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      background: linear-gradient(to right, #6366f1, #8b5cf6);
+      border: none;
+      /* vivid purple */
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      font-family: 'Inter', sans-serif;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+    }
+
+    .login-btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+    }
+
+    /* ── Initial Connect Prompt State ───────────────── */
+    .chat-content-hidden {
+      display: none !important;
+    }
+
+    .connect-prompt-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      min-height: 50vh;
+      opacity: 1;
+      transition: opacity 0.3s;
+    }
+
+    .connect-prompt-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+    }
+
+    .connect-prompt-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .connect-prompt-sub {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      max-width: 300px;
+      line-height: 1.5;
+    }
+
+    /* ── Login Form Fields ─────────────────────────── */
+    .login-field-group {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .login-input-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    .login-input-wrap svg {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: rgba(255, 255, 255, 0.3);
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    .login-field {
+      width: 100%;
+      padding: 12px 14px 12px 40px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
+      font-size: 14px;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .login-field:focus {
+      border-color: rgba(0, 216, 180, 0.5);
+      /* teal glow on focus */
+      background: rgba(0, 216, 180, 0.05);
+      box-shadow: 0 0 0 1px rgba(0, 216, 180, 0.2);
+    }
+
+    .login-field:focus+svg {
+      color: rgba(0, 216, 180, 0.8);
+    }
+
+    .login-field::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .forgot-link {
+      width: 100%;
+      text-align: right;
+      font-size: 11px;
+      color: rgba(0, 216, 180, 0.8);
+      text-decoration: none;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+
+    .forgot-link:hover {
+      text-decoration: underline;
+      color: #00D8B4;
+    }
+
+    /* ── Sidebar Profile Sign-out ─────────────────── */
+    .sidebar-bottom {
+      position: relative;
+      cursor: pointer;
+    }
+    .signout-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 7px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all .18s;
+    }
+    .signout-btn:hover {
+      color: #f87171;
+      background: rgba(248,113,113,0.08);
+      border-color: rgba(248,113,113,0.25);
+    }
+    /* ── DB Status Popover ─────────────────────────── */
+    .db-popover-wrap {
+      position: relative;
+    }
+
+    .db-popover {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: #12121e;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 16px;
+      width: 240px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+      z-index: 500;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      animation: popIn .15s ease;
+    }
+
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .db-popover.open {
+      display: flex;
+    }
+
+    .db-pop-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .db-pop-sub {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    .db-pop-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 6px 0;
+    }
+
+    .db-pop-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+
+    .db-pop-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .db-pop-item.green {
+      color: var(--accent2);
+    }
+
+    .db-pop-item.red {
+      color: #f87171;
+    }
+  </style>
 </head>
+
 <body>
-<div class="app">
 
-  <!-- ── Topbar (full width) ── -->
-  <div class="topbar">
-      <div class="topbar-title">
-        <svg width="15" height="15" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="7" fill="url(#lg2)"/><path d="M8 20L14 13L19 17L25 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="lg2" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#7C6FFF"/><stop offset="1" stop-color="#00D8B4"/></linearGradient></defs></svg>
-        <span>E-commerce product overview</span>
+  <!-- ── Login Screen Overlay ── -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <div class="login-logo">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+          <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+        </svg>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div class="connected-badge">Connected</div>
-        <div class="topbar-actions">
-            <div class="icon-btn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme" style="cursor:pointer;">
-              <svg id="iconMoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-              <svg id="iconSun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            </div>
-            <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
-            <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-            <div class="avatar" style="width:28px;height:28px;font-size:11px;">T</div>
-          </div>
-      </div>
-    </div>
+      <div class="login-title">Data-Talk</div>
+      <div class="login-sub">Autonomous Database Intelligence</div>
 
-  <!-- ── App Body ── -->
-  <div class="app-body">
-
-  <!-- ── Left Sidebar ── -->
-  <aside class="sidebar">
-    <div class="logo">
-      <svg viewBox="0 0 32 32" fill="none">
-        <rect width="32" height="32" rx="9" fill="url(#lg1)"/>
-        <path d="M8 20L14 13L19 17L25 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="25" cy="10" r="2.5" fill="white"/>
-        <defs><linearGradient id="lg1" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#7C6FFF"/><stop offset="1" stop-color="#00D8B4"/></linearGradient></defs>
-      </svg>
-      Data-Talk
-    </div>
-
-    <button class="new-chat-btn">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      New Chat
-    </button>
-
-    <div class="section-label">Recent</div>
-    <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Top 10 most reviewed products...</div>
-    <div class="chat-item active"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>E-commerce product overview</div>
-    <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Discount analysis by category</div>
-    <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Price vs ratings correlation</div>
-    <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Hi</div>
-
-    <div class="sidebar-bottom">
-      <div class="avatar">T</div>
-      <div class="user-info">
-        <div class="name">Username</div>
-        <div class="email">example@gmail.com</div>
-      </div>
-    </div>
-  </aside>
-
-  <!-- ── Main Content ── -->
-  <div class="main">
-    <!-- Chat -->
-    <div class="chat-area" id="chatArea">
-
-      <!-- ─── Query 1: Overview ─── -->
-      <div class="message user-msg">
-        <div class="user-bubble">Give me a complete overview of the products and their performance</div>
-        <div class="msg-time">You · 10:11 PM</div>
-      </div>
-
-      <div class="message ai-msg">
-        <div class="ai-header">
-          <div class="ai-avatar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <div>
-            <div class="ai-label">ANALYST AI</div>
-            <div class="ai-meta">
-              <span style="font-size:10px;color:var(--muted);">10:11 PM</span>
-              <span class="badge badge-green">● Query Executed</span>
-              <span class="badge badge-blue">10,524 rows</span>
-            </div>
-          </div>
+      <!-- Email + Password form -->
+      <div class="login-field-group">
+        <div class="login-input-wrap">
+          <input class="login-field" type="email" placeholder="Email address" autocomplete="email" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+            <polyline points="22,6 12,13 2,6" />
+          </svg>
         </div>
-
-        <!-- SQL Block -->
-        <div class="sql-block">
-          <div class="sql-header">
-            <div class="sql-title">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              SQL LOGIC
-            </div>
-            <div class="sql-actions">
-              <div class="sql-action-btn badge-green" style="color:var(--accent2);">● Query Executed</div>
-              <div class="sql-action-btn">⧉ Copy</div>
-            </div>
-          </div>
-          <div class="sql-code">
-            <span class="sql-kw">SELECT</span> main_category,
-            <span class="sql-fn">COUNT</span>(*) <span class="sql-kw">AS</span> total_products,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(ratings) <span class="sql-kw">AS</span> avg_rating,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(discount_price) <span class="sql-kw">AS</span> avg_discount,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(actual_price) <span class="sql-kw">AS</span> avg_actual<br>
-            <span class="sql-kw">FROM</span> amazon_products<br>
-            <span class="sql-kw">GROUP BY</span> main_category<br>
-            <span class="sql-kw">ORDER BY</span> total_products <span class="sql-kw">DESC</span>;
-          </div>
-        </div>
-
-        <!-- Dashboard 1 -->
-        <div>
-          <div class="dashboard-header">DASHBOARD · 4 VISUALIZATIONS</div>
-          <div class="kpi-grid">
-            <div class="kpi-card">
-              <div class="kpi-label">Total Products</div>
-              <div class="kpi-value">10,524</div>
-              <div class="kpi-sub">In catalog</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Avg Rating</div>
-              <div class="kpi-value">3.92</div>
-              <div class="kpi-sub kpi-delta-up">↑ out of 5.0</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Avg Discount</div>
-              <div class="kpi-value">₹487</div>
-              <div class="kpi-sub kpi-delta-down">↓ 38% off MRP</div>
-            </div>
-          </div>
-          <div class="charts-grid two">
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">PRODUCTS BY CATEGORY</div>
-                <div class="chart-type-badge">horizontal bar</div>
-              </div>
-              <div class="chart-body" id="c1" style="height:320px;"></div>
-            </div>
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">CATEGORY SHARE</div>
-                <div class="chart-type-badge">donut</div>
-              </div>
-              <div class="chart-body" id="c2" style="height:320px;"></div>
-            </div>
-          </div>
-          <div class="charts-grid one" style="margin-top:14px;">
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">AVG RATING BY CATEGORY</div>
-                <div class="chart-type-badge">bar</div>
-              </div>
-              <div class="chart-body" id="c3" style="height:300px;"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="ai-text">
-          We have a massive product catalog with <strong style="color:var(--text);">10,524 products</strong> across 11 main categories. 
-          The overall average rating is a healthy <strong style="color:var(--accent2);">3.92/5.0</strong>. 
-          Electronics dominates with the most product listings, while Toys & Baby Products leads in discount depth. 
-          The average selling price across all categories is ₹487 — about 38% below the original MRP, indicating strong promotional pricing across the board.
-        </div>
-
-        <div class="quick-btns">
-          <button class="quick-btn">Visualize</button>
-          <button class="quick-btn">Query</button>
-          <button class="quick-btn">Summarize</button>
+        <div class="login-input-wrap">
+          <input class="login-field" type="password" placeholder="Password" autocomplete="current-password" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0110 0v4" />
+          </svg>
         </div>
       </div>
 
-      <!-- ─── Query 2: Discount Analysis ─── -->
-      <div class="message user-msg">
-        <div class="user-bubble">Which categories have the highest average discount savings?</div>
-        <div class="msg-time">You · 10:15 PM</div>
-      </div>
+      <a href="#" class="forgot-link">Forgot password?</a>
 
-      <div class="message ai-msg">
-        <div class="ai-header">
-          <div class="ai-avatar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <div>
-            <div class="ai-label">ANALYST AI</div>
-            <div class="ai-meta">
-              <span style="font-size:10px;color:var(--muted);">10:15 PM</span>
-              <span class="badge badge-green">● Query Executed</span>
-              <span class="badge badge-blue">11 rows</span>
-            </div>
-          </div>
-        </div>
+      <button class="login-btn-primary" onclick="handleLoginSubmit()">
+        Sign In
+      </button>
 
-        <div class="sql-block">
-          <div class="sql-header">
-            <div class="sql-title">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              SQL LOGIC
-            </div>
-            <div class="sql-actions">
-              <div class="sql-action-btn badge-green" style="color:var(--accent2);">● Query Executed</div>
-              <div class="sql-action-btn">⧉ Copy</div>
-            </div>
-          </div>
-          <div class="sql-code">
-            <span class="sql-kw">SELECT</span> main_category,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(actual_price - discount_price) <span class="sql-kw">AS</span> avg_savings,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(actual_price) <span class="sql-kw">AS</span> avg_mrp,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(discount_price) <span class="sql-kw">AS</span> avg_selling<br>
-            <span class="sql-kw">FROM</span> amazon_products<br>
-            <span class="sql-kw">WHERE</span> actual_price <span class="sql-kw">IS NOT NULL</span><br>
-            <span class="sql-kw">GROUP BY</span> main_category<br>
-            <span class="sql-kw">ORDER BY</span> avg_savings <span class="sql-kw">DESC</span>;
-          </div>
-        </div>
+      <div class="login-divider">or continue with</div>
 
-        <div>
-          <div class="dashboard-header">DASHBOARD · 3 VISUALIZATIONS</div>
-          <div class="kpi-grid">
-            <div class="kpi-card">
-              <div class="kpi-label">Max Savings</div>
-              <div class="kpi-value">₹5,241</div>
-              <div class="kpi-sub">Electronics avg</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Min Savings</div>
-              <div class="kpi-value">₹89</div>
-              <div class="kpi-sub">Grocery avg</div>
-            </div>
-          </div>
-          <div class="charts-grid one">
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">AVG DISCOUNT SAVINGS BY CATEGORY</div>
-                <div class="chart-type-badge">waterfall / bar</div>
-              </div>
-              <div class="chart-body" id="c4" style="height:300px;"></div>
-            </div>
-          </div>
-          <div class="charts-grid two" style="margin-top:14px;">
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">MRP vs SELLING PRICE</div>
-                <div class="chart-type-badge">grouped bar</div>
-              </div>
-              <div class="chart-body" id="c5" style="height:300px;"></div>
-            </div>
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">DISCOUNT DEPTH %</div>
-                <div class="chart-type-badge">radar</div>
-              </div>
-              <div class="chart-body" id="c6" style="height:300px;"></div>
-            </div>
-          </div>
-        </div>
+      <!-- OAuth buttons -->
+      <button class="login-btn-outline" onclick="handleLoginSubmit()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+            fill="#4285F4" />
+          <path
+            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            fill="#34A853" />
+          <path
+            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+            fill="#FBBC05" />
+          <path
+            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+            fill="#EA4335" />
+        </svg>
+        Continue with Google
+      </button>
+      <button class="login-btn-outline" style="margin-bottom:0;" onclick="handleLoginSubmit()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.379.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.416 22 12c0-5.523-4.477-10-10-10z" />
+        </svg>
+        Continue with GitHub
+      </button>
 
-        <div class="ai-text">
-          <strong style="color:var(--text);">Electronics</strong> offers the highest average savings at ₹5,241 per product — making it the best category for deal hunters. 
-          Computers & Accessories follows at ₹3,820. 
-          Grocery & Gourmet products, while cheaper in absolute terms, offer the least savings at ₹89. 
-          Across all categories, buyers save an average of <strong style="color:var(--accent2);">₹1,340</strong> compared to the original MRP.
-        </div>
-        <div class="quick-btns">
-          <button class="quick-btn">Visualize</button>
-          <button class="quick-btn">Query</button>
-          <button class="quick-btn">Summarize</button>
-        </div>
-      </div>
-
-      <!-- ─── Query 3: Top Products ─── -->
-      <div class="message user-msg">
-        <div class="user-bubble">Show me the top 10 most reviewed products and their ratings</div>
-        <div class="msg-time">You · 10:22 PM</div>
-      </div>
-
-      <div class="message ai-msg">
-        <div class="ai-header">
-          <div class="ai-avatar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <div>
-            <div class="ai-label">ANALYST AI</div>
-            <div class="ai-meta">
-              <span style="font-size:10px;color:var(--muted);">10:22 PM</span>
-              <span class="badge badge-green">● Query Executed</span>
-              <span class="badge badge-blue">10 rows</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="sql-block">
-          <div class="sql-header">
-            <div class="sql-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>SQL LOGIC</div>
-            <div class="sql-actions"><div class="sql-action-btn badge-green" style="color:var(--accent2);">● Query Executed</div><div class="sql-action-btn">⧉ Copy</div></div>
-          </div>
-          <div class="sql-code">
-            <span class="sql-kw">SELECT</span> name, no_of_ratings, ratings, main_category<br>
-            <span class="sql-kw">FROM</span> amazon_products<br>
-            <span class="sql-kw">WHERE</span> no_of_ratings <span class="sql-kw">IS NOT NULL</span><br>
-            <span class="sql-kw">ORDER BY</span> no_of_ratings <span class="sql-kw">DESC</span><br>
-            <span class="sql-kw">LIMIT</span> 10;
-          </div>
-        </div>
-
-        <div>
-          <div class="dashboard-header">DASHBOARD · 2 VISUALIZATIONS</div>
-          <div class="charts-grid one">
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">TOP 10 MOST REVIEWED PRODUCTS</div>
-                <div class="chart-type-badge">horizontal bar</div>
-              </div>
-              <div class="chart-body" id="c7" style="height:340px;"></div>
-            </div>
-          </div>
-          <div class="charts-grid one" style="margin-top:14px;">
-            <div class="chart-card">
-              <div class="chart-card-header">
-                <div class="chart-card-title">REVIEW COUNT vs STAR RATING (scatter)</div>
-                <div class="chart-type-badge">scatter</div>
-              </div>
-              <div class="chart-body" id="c8" style="height:300px;"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="ai-text">
-          The most reviewed product has an incredible <strong style="color:var(--text);">4,91,621 reviews</strong>, demonstrating exceptional market reach. 
-          Interestingly, the top-reviewed products maintain strong ratings between <strong style="color:var(--accent2);">3.9 and 4.5 stars</strong>, 
-          suggesting that high visibility doesn't compromise perceived quality. Electronics accessories and home products dominate the top positions, 
-          indicating categories with the highest repeat purchase activity on the platform.
-        </div>
-        <div class="quick-btns">
-          <button class="quick-btn">Visualize</button>
-          <button class="quick-btn">Query</button>
-          <button class="quick-btn">Summarize</button>
-        </div>
-      </div>
-
-    </div><!-- /chat-area -->
-
-    <!-- Input -->
-    <div class="input-area">
-      <div class="input-bar">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        <input type="text" placeholder="Ask anything about your data..." />
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-        <button class="send-btn">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        </button>
-      </div>
-      <div class="powered">Powered by Gemini 3.1 Pro</div>
+      <p style="font-size:10px;color:rgba(255,255,255,0.4);text-align:center;margin-top:24px;line-height:1.6;">By
+        continuing, you agree to our Terms of Service.<br>Your data is secured with row-level policies.</p>
     </div>
   </div>
 
-  <!-- ── Right Sidebar (Schema Explorer) ── -->
-  <aside class="right-sidebar">
-    <div class="rs-header">
-      SCHEMA EXPLORER
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:.5;cursor:pointer;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9"/></svg>
+  <div class="app">
+
+    <!-- ── Topbar (full width) ── -->
+    <div class="topbar">
+      <div class="topbar-title">
+        <svg width="15" height="15" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="7" fill="url(#lg2)" />
+          <path d="M8 20L14 13L19 17L25 10" stroke="white" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <defs>
+            <linearGradient id="lg2" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#7C6FFF" />
+              <stop offset="1" stop-color="#00D8B4" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <span>E-commerce product overview</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <!-- DB status button + popover wrapper -->
+        <div class="db-popover-wrap">
+          <button class="connect-db-btn" id="dbStatusBtn" onclick="toggleDbPopover()">
+            <span class="dot" id="dbStatusDot"></span>
+            <span id="dbStatusText">Connect Database</span>
+          </button>
+          <!-- Popover: shown only when Connected -->
+          <div class="db-popover" id="dbPopover">
+            <div class="db-pop-title">Database Connected</div>
+            <div class="db-pop-sub">PostgreSQL is currently active. What would you like to do?</div>
+            <div class="db-pop-divider"></div>
+            <div class="db-pop-item green">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+              Keep Connected
+            </div>
+            <div class="db-pop-item red" onclick="disconnectDb()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+                <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+              </svg>
+              Disconnect &amp; Reconnect
+            </div>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <!-- Mobile hamburger -->
+          <div class="icon-btn" id="menuToggle" onclick="toggleDrawer()" title="Menu" style="cursor:pointer;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </div>
+          <div class="icon-btn" id="themeToggle" onclick="toggleTheme()" title="Toggle theme" style="cursor:pointer;">
+            <svg id="iconMoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+            <svg id="iconSun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" style="display:none;">
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          </div>
+          <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg></div>
+          <div class="icon-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg></div>
+          <div class="avatar" style="width:28px;height:28px;font-size:11px;">T</div>
+        </div>
+      </div>
     </div>
-    <div class="rs-group-label">Public Tables</div>
-    <div class="rs-table">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-      <span style="color:var(--text);">amazon_products</span>
+
+    <!-- Mobile Drawer Overlay -->
+    <div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer()"></div>
+
+    <!-- ── App Body ── -->
+    <div class="app-body">
+
+      <!-- ── Left Sidebar ── -->
+      <aside class="sidebar">
+        <div class="logo">
+          <svg viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="9" fill="url(#lg1)" />
+            <path d="M8 20L14 13L19 17L25 10" stroke="white" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" />
+            <circle cx="25" cy="10" r="2.5" fill="white" />
+            <defs>
+              <linearGradient id="lg1" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#7C6FFF" />
+                <stop offset="1" stop-color="#00D8B4" />
+              </linearGradient>
+            </defs>
+          </svg>
+          Data-Talk
+        </div>
+
+        <button class="new-chat-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Chat
+        </button>
+
+        <div class="section-label">Recent</div>
+        <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>Top 10 most reviewed products...</div>
+        <div class="chat-item active"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>E-commerce product overview</div>
+        <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>Discount analysis by category</div>
+        <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>Price vs ratings correlation</div>
+        <div class="chat-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>Hi</div>
+
+        <div class="sidebar-bottom">
+          <div class="avatar">T</div>
+          <div class="user-info">
+            <div class="name">Username</div>
+            <div class="email">example@gmail.com</div>
+          </div>
+          <div class="signout-btn" onclick="signOut()" title="Sign Out">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ── Main Content ── -->
+      <div class="main">
+        <!-- Chat -->
+        <div class="chat-area" id="chatArea">
+
+          <!-- ── Initial Connect Prompt ── -->
+          <div class="connect-prompt-area" id="connectPrompt">
+            <div class="connect-prompt-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+                <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+              </svg>
+            </div>
+            <div class="connect-prompt-title">No Database Connected</div>
+            <div class="connect-prompt-sub">Connect your PostgreSQL database to start exploring, querying, and
+              visualizing your data.</div>
+            <button class="login-btn-primary" style="width:auto;padding:8px 20px;margin-top:8px;"
+              onclick="openDbModal()">Connect</button>
+          </div>
+
+          <div id="realChatContent" class="chat-content-hidden">
+            <!-- ─── Query 1: Overview ─── -->
+            <div class="message user-msg">
+              <div class="user-bubble">Give me a complete overview of the products and their performance</div>
+              <div class="msg-time">You · 10:11 PM</div>
+            </div>
+
+            <div class="message ai-msg">
+              <div class="ai-header">
+                <div class="ai-avatar">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                </div>
+                <div>
+                  <div class="ai-label">ANALYST AI</div>
+                  <div class="ai-meta">
+                    <span style="font-size:10px;color:var(--muted);">10:11 PM</span>
+                    <span class="badge badge-green">● Query Executed</span>
+                    <span class="badge badge-blue">10,524 rows</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SQL Block -->
+              <div class="sql-block">
+                <div class="sql-header">
+                  <div class="sql-title">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    SQL LOGIC
+                  </div>
+                  <div class="sql-actions">
+                    <div class="sql-action-btn badge-green" style="color:var(--accent2);">● Query Executed</div>
+                    <div class="sql-action-btn">⧉ Copy</div>
+                  </div>
+                </div>
+                <div class="sql-code">
+                  <span class="sql-kw">SELECT</span> main_category,
+                  <span class="sql-fn">COUNT</span>(*) <span class="sql-kw">AS</span> total_products,<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(ratings) <span class="sql-kw">AS</span>
+                  avg_rating,<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(discount_price) <span class="sql-kw">AS</span>
+                  avg_discount,<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(actual_price) <span class="sql-kw">AS</span>
+                  avg_actual<br>
+                  <span class="sql-kw">FROM</span> amazon_products<br>
+                  <span class="sql-kw">GROUP BY</span> main_category<br>
+                  <span class="sql-kw">ORDER BY</span> total_products <span class="sql-kw">DESC</span>;
+                </div>
+              </div>
+
+              <!-- Dashboard 1 -->
+              <div>
+                <div class="dashboard-header">DASHBOARD · 4 VISUALIZATIONS</div>
+                <div class="kpi-grid">
+                  <div class="kpi-card">
+                    <div class="kpi-label">Total Products</div>
+                    <div class="kpi-value">10,524</div>
+                    <div class="kpi-sub">In catalog</div>
+                  </div>
+                  <div class="kpi-card">
+                    <div class="kpi-label">Avg Rating</div>
+                    <div class="kpi-value">3.92</div>
+                    <div class="kpi-sub kpi-delta-up">↑ out of 5.0</div>
+                  </div>
+                  <div class="kpi-card">
+                    <div class="kpi-label">Avg Discount</div>
+                    <div class="kpi-value">₹487</div>
+                    <div class="kpi-sub kpi-delta-down">↓ 38% off MRP</div>
+                  </div>
+                </div>
+                <div class="charts-grid two">
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">PRODUCTS BY CATEGORY</div>
+                      <div class="chart-type-badge">horizontal bar</div>
+                    </div>
+                    <div class="chart-body" id="c1" style="height:320px;"></div>
+                  </div>
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">CATEGORY SHARE</div>
+                      <div class="chart-type-badge">donut</div>
+                    </div>
+                    <div class="chart-body" id="c2" style="height:320px;"></div>
+                  </div>
+                </div>
+                <div class="charts-grid one" style="margin-top:14px;">
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">AVG RATING BY CATEGORY</div>
+                      <div class="chart-type-badge">bar</div>
+                    </div>
+                    <div class="chart-body" id="c3" style="height:300px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ai-text">
+                We have a massive product catalog with <strong style="color:var(--text);">10,524 products</strong>
+                across 11 main categories.
+                The overall average rating is a healthy <strong style="color:var(--accent2);">3.92/5.0</strong>.
+                Electronics dominates with the most product listings, while Toys & Baby Products leads in discount
+                depth.
+                The average selling price across all categories is ₹487 — about 38% below the original MRP, indicating
+                strong promotional pricing across the board.
+              </div>
+
+              <div class="quick-btns">
+                <button class="quick-btn">Visualize</button>
+                <button class="quick-btn">Query</button>
+                <button class="quick-btn">Summarize</button>
+              </div>
+            </div>
+
+            <!-- ─── Query 2: Discount Analysis ─── -->
+            <div class="message user-msg">
+              <div class="user-bubble">Which categories have the highest average discount savings?</div>
+              <div class="msg-time">You · 10:15 PM</div>
+            </div>
+
+            <div class="message ai-msg">
+              <div class="ai-header">
+                <div class="ai-avatar">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                </div>
+                <div>
+                  <div class="ai-label">ANALYST AI</div>
+                  <div class="ai-meta">
+                    <span style="font-size:10px;color:var(--muted);">10:15 PM</span>
+                    <span class="badge badge-green">● Query Executed</span>
+                    <span class="badge badge-blue">11 rows</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="sql-block">
+                <div class="sql-header">
+                  <div class="sql-title">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.5">
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>
+                    SQL LOGIC
+                  </div>
+                  <div class="sql-actions">
+                    <div class="sql-action-btn badge-green" style="color:var(--accent2);">● Query Executed</div>
+                    <div class="sql-action-btn">⧉ Copy</div>
+                  </div>
+                </div>
+                <div class="sql-code">
+                  <span class="sql-kw">SELECT</span> main_category,<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(actual_price - discount_price) <span
+                    class="sql-kw">AS</span> avg_savings,<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(actual_price) <span class="sql-kw">AS</span>
+                  avg_mrp,<br>
+                  &nbsp;&nbsp;&nbsp;&nbsp;<span class="sql-fn">AVG</span>(discount_price) <span class="sql-kw">AS</span>
+                  avg_selling<br>
+                  <span class="sql-kw">FROM</span> amazon_products<br>
+                  <span class="sql-kw">WHERE</span> actual_price <span class="sql-kw">IS NOT NULL</span><br>
+                  <span class="sql-kw">GROUP BY</span> main_category<br>
+                  <span class="sql-kw">ORDER BY</span> avg_savings <span class="sql-kw">DESC</span>;
+                </div>
+              </div>
+
+              <div>
+                <div class="dashboard-header">DASHBOARD · 3 VISUALIZATIONS</div>
+                <div class="kpi-grid">
+                  <div class="kpi-card">
+                    <div class="kpi-label">Max Savings</div>
+                    <div class="kpi-value">₹5,241</div>
+                    <div class="kpi-sub">Electronics avg</div>
+                  </div>
+                  <div class="kpi-card">
+                    <div class="kpi-label">Min Savings</div>
+                    <div class="kpi-value">₹89</div>
+                    <div class="kpi-sub">Grocery avg</div>
+                  </div>
+                </div>
+                <div class="charts-grid one">
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">AVG DISCOUNT SAVINGS BY CATEGORY</div>
+                      <div class="chart-type-badge">waterfall / bar</div>
+                    </div>
+                    <div class="chart-body" id="c4" style="height:300px;"></div>
+                  </div>
+                </div>
+                <div class="charts-grid two" style="margin-top:14px;">
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">MRP vs SELLING PRICE</div>
+                      <div class="chart-type-badge">grouped bar</div>
+                    </div>
+                    <div class="chart-body" id="c5" style="height:300px;"></div>
+                  </div>
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">DISCOUNT DEPTH %</div>
+                      <div class="chart-type-badge">radar</div>
+                    </div>
+                    <div class="chart-body" id="c6" style="height:300px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ai-text">
+                <strong style="color:var(--text);">Electronics</strong> offers the highest average savings at ₹5,241 per
+                product — making it the best category for deal hunters.
+                Computers & Accessories follows at ₹3,820.
+                Grocery & Gourmet products, while cheaper in absolute terms, offer the least savings at ₹89.
+                Across all categories, buyers save an average of <strong style="color:var(--accent2);">₹1,340</strong>
+                compared to the original MRP.
+              </div>
+              <div class="quick-btns">
+                <button class="quick-btn">Visualize</button>
+                <button class="quick-btn">Query</button>
+                <button class="quick-btn">Summarize</button>
+              </div>
+            </div>
+
+            <!-- ─── Query 3: Top Products ─── -->
+            <div class="message user-msg">
+              <div class="user-bubble">Show me the top 10 most reviewed products and their ratings</div>
+              <div class="msg-time">You · 10:22 PM</div>
+            </div>
+
+            <div class="message ai-msg">
+              <div class="ai-header">
+                <div class="ai-avatar">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                </div>
+                <div>
+                  <div class="ai-label">ANALYST AI</div>
+                  <div class="ai-meta">
+                    <span style="font-size:10px;color:var(--muted);">10:22 PM</span>
+                    <span class="badge badge-green">● Query Executed</span>
+                    <span class="badge badge-blue">10 rows</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="sql-block">
+                <div class="sql-header">
+                  <div class="sql-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2.5">
+                      <rect x="2" y="3" width="20" height="14" rx="2" />
+                      <line x1="8" y1="21" x2="16" y2="21" />
+                      <line x1="12" y1="17" x2="12" y2="21" />
+                    </svg>SQL LOGIC</div>
+                  <div class="sql-actions">
+                    <div class="sql-action-btn badge-green" style="color:var(--accent2);">● Query Executed</div>
+                    <div class="sql-action-btn">⧉ Copy</div>
+                  </div>
+                </div>
+                <div class="sql-code">
+                  <span class="sql-kw">SELECT</span> name, no_of_ratings, ratings, main_category<br>
+                  <span class="sql-kw">FROM</span> amazon_products<br>
+                  <span class="sql-kw">WHERE</span> no_of_ratings <span class="sql-kw">IS NOT NULL</span><br>
+                  <span class="sql-kw">ORDER BY</span> no_of_ratings <span class="sql-kw">DESC</span><br>
+                  <span class="sql-kw">LIMIT</span> 10;
+                </div>
+              </div>
+
+              <div>
+                <div class="dashboard-header">DASHBOARD · 2 VISUALIZATIONS</div>
+                <div class="charts-grid one">
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">TOP 10 MOST REVIEWED PRODUCTS</div>
+                      <div class="chart-type-badge">horizontal bar</div>
+                    </div>
+                    <div class="chart-body" id="c7" style="height:340px;"></div>
+                  </div>
+                </div>
+                <div class="charts-grid one" style="margin-top:14px;">
+                  <div class="chart-card">
+                    <div class="chart-card-header">
+                      <div class="chart-card-title">REVIEW COUNT vs STAR RATING (scatter)</div>
+                      <div class="chart-type-badge">scatter</div>
+                    </div>
+                    <div class="chart-body" id="c8" style="height:300px;"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ai-text">
+                The most reviewed product has an incredible <strong style="color:var(--text);">4,91,621
+                  reviews</strong>, demonstrating exceptional market reach.
+                Interestingly, the top-reviewed products maintain strong ratings between <strong
+                  style="color:var(--accent2);">3.9 and 4.5 stars</strong>,
+                suggesting that high visibility doesn't compromise perceived quality. Electronics accessories and home
+                products dominate the top positions,
+                indicating categories with the highest repeat purchase activity on the platform.
+              </div>
+              <div class="quick-btns">
+                <button class="quick-btn">Visualize</button>
+                <button class="quick-btn">Query</button>
+                <button class="quick-btn">Summarize</button>
+              </div>
+            </div>
+
+          </div><!-- /realChatContent -->
+
+        </div><!-- /chat-area -->
+
+        <!-- Input -->
+        <div class="input-area">
+          <div class="input-bar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2">
+              <path
+                d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
+            <input type="text" placeholder="Ask anything about your data..." />
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+            <button class="send-btn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          </div>
+          <div class="powered">Powered by Gemini 3.1 Pro</div>
+        </div>
+      </div>
+
+      <!-- ── Right Sidebar (Schema Explorer) ── -->
+      <aside class="right-sidebar">
+        <div class="rs-header">
+          SCHEMA EXPLORER
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="opacity:.5;cursor:pointer;">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9" />
+          </svg>
+        </div>
+        <div class="rs-group-label">Public Tables</div>
+        <div class="rs-table">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="1.8">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+          <span style="color:var(--text);">amazon_products</span>
+        </div>
+        <div class="rs-table">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+          <span>product_reviews</span>
+        </div>
+        <div class="rs-table">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <line x1="3" y1="9" x2="21" y2="9" />
+            <line x1="3" y1="15" x2="21" y2="15" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+          <span>categories</span>
+        </div>
+        <div class="refresh-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+          REFRESH SCHEMA
+        </div>
+      </aside>
+
+    </div><!-- /app-body -->
+
+    <!-- Bottom Navigation (mobile only) -->
+    <nav class="bottom-nav" id="bottomNav">
+      <div class="nav-item active" id="navChat" onclick="navTo('chat')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        Chat
+      </div>
+      <div class="nav-item" id="navSchema" onclick="navTo('schema')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="3" y1="9" x2="21" y2="9" />
+          <line x1="3" y1="15" x2="21" y2="15" />
+          <line x1="9" y1="3" x2="9" y2="21" />
+        </svg>
+        Schema
+      </div>
+      <div class="nav-item" id="navTheme" onclick="toggleTheme(); navTo('chat')">
+        <svg id="navMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+        <svg id="navSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="1" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="12" x2="23" y2="12" />
+        </svg>
+        Theme
+      </div>
+      <div class="nav-item" id="navProfile" onclick="navTo('profile')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+        Profile
+      </div>
+    </nav>
+
+  </div><!-- /app -->
+
+  <!-- ── Connect Database Modal ── -->
+  <div class="modal-backdrop" id="dbModal">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div style="display:flex;align-items:flex-start;gap:14px;">
+          <div class="modal-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+              <ellipse cx="12" cy="5" rx="9" ry="3" />
+              <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+              <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+            </svg>
+          </div>
+          <div>
+            <div class="modal-title">Connect Database</div>
+            <div class="modal-sub">Enter PostgreSQL connection details</div>
+          </div>
+        </div>
+        <div class="modal-close" onclick="closeDbModal()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="modal-tabs">
+        <div class="modal-tab active" id="tabParams" onclick="switchTab('params')">Parameters</div>
+        <div class="modal-tab" id="tabUri" onclick="switchTab('uri')">Connection URI</div>
+      </div>
+
+      <!-- Parameters panel -->
+      <div id="panelParams" class="modal-fields">
+        <div class="modal-row">
+          <div class="field-group">
+            <div class="field-label">Host</div>
+            <input class="field-input" type="text" value="localhost" placeholder="localhost" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Port</div>
+            <input class="field-input" type="text" value="5432" placeholder="5432" />
+          </div>
+        </div>
+        <div class="modal-row">
+          <div class="field-group">
+            <div class="field-label">Username</div>
+            <input class="field-input" type="text" value="postgres" placeholder="postgres" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Password</div>
+            <input class="field-input" type="password" value="password" placeholder="••••••••" />
+          </div>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Database Name</div>
+          <input class="field-input" type="text" value="my_database" placeholder="my_database" />
+        </div>
+      </div>
+
+      <!-- URI panel -->
+      <div id="panelUri" class="modal-fields" style="display:none;">
+        <div class="field-group">
+          <div class="field-label">Connection URI</div>
+          <input class="field-input" type="text" placeholder="postgresql://user:password@host:port/dbname"
+            style="font-family:'JetBrains Mono',monospace;font-size:12px;" />
+        </div>
+      </div>
+
+      <div class="modal-info">
+        <div class="modal-info-item">Supports PostgreSQL only</div>
+        <div class="modal-info-item">The database schema will be indexed automatically</div>
+        <div class="modal-info-item">Using Supabase? Use the IPv4 Session Pooler connection details</div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="modal-cancel" onclick="closeDbModal()">Cancel</button>
+        <button class="modal-connect" id="modalConnectBtn" onclick="simulateDbConnect()">Connect Database</button>
+      </div>
     </div>
-    <div class="rs-table">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-      <span>product_reviews</span>
-    </div>
-    <div class="rs-table">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-      <span>categories</span>
-    </div>
-    <div class="refresh-btn">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-      REFRESH SCHEMA
-    </div>
-  </aside>
+  </div>
 
-</div><!-- /app-body -->
+  <script>
+    // ── Interactive Flows (Login & Connect) ─────────────────────
+    let dbConnected = false;
 
-</div><!-- /app -->
+    function handleLoginSubmit() {
+      // Reveal the app
+      document.getElementById('loginScreen').style.opacity = '0';
+      setTimeout(() => { document.getElementById('loginScreen').classList.add('hidden'); }, 400);
 
-<script>
-// ── Dark theme ─────────────────────────────────────────────
-const DARK = {
-  backgroundColor: 'transparent',
-  textStyle: { color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontSize: 11 },
-  axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
-  splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
-  tooltip: {
-    backgroundColor: 'rgba(13,13,26,0.95)',
-    borderColor: 'rgba(255,255,255,0.1)',
-    textStyle: { color: '#e2e8f0', fontSize: 11 }
-  }
-};
-const COLORS = ['#7C6FFF','#00D8B4','#f472b6','#fb923c','#60a5fa','#facc15','#34d399','#a78bfa','#f87171','#38bdf8','#4ade80'];
-const CATS = ['Electronics','Computers','Home & Kitchen','Clothing','Toys & Baby','Books','Sports','Beauty','Grocery','Office','Music'];
+      // Prompt the user to connect the database
+      if (!dbConnected) {
+        setTimeout(() => {
+          openDbModal();
+        }, 500); // short delay after logic screen goes away
+      }
+    }
 
-const _allCharts = [];
-function initChart(id, option) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const ch = echarts.init(el, null, { renderer: 'canvas' });
-  ch.setOption({ ...DARK, ...option });
-  window.addEventListener('resize', () => ch.resize());
-  _allCharts.push(ch);
-}
+    function signOut() {
+      // Revert back to the login screen
+      const loginScreen = document.getElementById('loginScreen');
+      loginScreen.classList.remove('hidden');
+      document.getElementById('dbPopover').classList.remove('open');
 
-// ── C1: Products by Category (Horizontal Bar) ─────────────
-initChart('c1', {
-  grid: { left: 110, right: 20, top: 10, bottom: 30 },
-  xAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
-  yAxis: { type: 'category', data: CATS.slice().reverse(), axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
-  series: [{
-    type: 'bar',
-    data: [280,390,510,640,720,850,980,1100,1380,1650,2024].reverse(),
-    barMaxWidth: 18,
-    itemStyle: { borderRadius: [0,6,6,0], color: p => ({ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:COLORS[p.dataIndex%11]+'aa'},{offset:1,color:COLORS[p.dataIndex%11]}] }) },
-    label: { show: true, position: 'right', color: '#94a3b8', fontSize: 10, formatter: v => v.value.toLocaleString() }
-  }]
-});
+      // Trigger layout to ensure the display change registers before opacity change
+      void loginScreen.offsetWidth;
+      loginScreen.style.opacity = '1';
 
-// ── C2: Category Share Donut ───────────────────────────────
-initChart('c2', {
-  tooltip: { trigger: 'item', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize:11 } },
-  legend: { type: 'scroll', orient: 'vertical', right: 10, top: 'middle', textStyle: { color: '#64748b', fontSize: 10 }, itemWidth: 8, itemHeight: 8, icon: 'circle', itemGap: 12 },
-  series: [{
-    type: 'pie', radius: ['45%','70%'], center: ['38%','50%'],
-    data: [
-      {name:'Electronics',value:2024},{name:'Computers',value:1650},{name:'Home & Kitchen',value:1380},
-      {name:'Clothing',value:1100},{name:'Toys & Baby',value:980},{name:'Books',value:850},{name:'Others',value:2540}
-    ].map((d,i) => ({...d, itemStyle:{color:COLORS[i]}})),
-    label: { show: false },
-    emphasis: { itemStyle: { shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.5)' } }
-  }]
-});
+      // Force DB disconnect when signing out
+      dbConnected = false;
+      // Reset the UI inside
+      const statusBtn = document.getElementById('dbStatusBtn');
+      statusBtn.style.background = '';
+      statusBtn.style.borderColor = '';
+      statusBtn.style.color = '';
+      document.getElementById('dbStatusDot').style.background = '';
+      document.getElementById('dbStatusText').innerText = 'Connect Database';
+      document.getElementById('realChatContent').classList.add('chat-content-hidden');
+      document.getElementById('connectPrompt').style.display = 'flex';
+    }
 
-// ── C3: Avg Rating by Category ────────────────────────────
-initChart('c3', {
-  grid: { left: 110, right: 30, top: 20, bottom: 30 },
-  xAxis: { type: 'value', min: 3, max: 5, axisLabel: { color: '#64748b', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
-  yAxis: { type: 'category', data: CATS, axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
-  series: [{
-    type: 'bar', barMaxWidth: 14,
-    data: [4.1, 4.0, 3.9, 3.8, 4.2, 3.7, 4.0, 4.1, 3.6, 3.9, 4.3],
-    itemStyle: { borderRadius: [0,5,5,0], color: p => ({ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:'#7C6FFFaa'},{offset:1,color:'#00D8B4'}] }) },
-    label: { show: true, position: 'right', color: '#94a3b8', fontSize: 10, formatter: p => p.value.toFixed(1) }
-  }]
-});
+    function toggleDbPopover() {
+      if (!dbConnected) {
+        openDbModal();
+      } else {
+        document.getElementById('dbPopover').classList.toggle('open');
+      }
+    }
 
-// ── C4: Discount Savings Bar ──────────────────────────────
-initChart('c4', {
-  grid: { left: 110, right: 30, top: 20, bottom: 30 },
-  xAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10, formatter: v => '₹'+v.toLocaleString() }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
-  yAxis: { type: 'category', data: ['Grocery','Books','Clothing','Beauty','Toys','Sports','Office','Home','Computers','Electronics'], axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize:11 }, formatter: p => `${p[0].name}<br/>Avg Savings: ₹${p[0].value.toLocaleString()}` },
-  series: [{
-    type: 'bar', barMaxWidth: 18,
-    data: [89, 210, 380, 450, 620, 780, 890, 1240, 3820, 5241],
-    itemStyle: { borderRadius: [0,6,6,0], color: p => ({ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:COLORS[p.dataIndex%11]+'88'},{offset:1,color:COLORS[p.dataIndex%11]}] }) },
-    label: { show: true, position: 'right', color: '#94a3b8', fontSize: 10, formatter: p => '₹'+p.value.toLocaleString() }
-  }]
-});
+    // Close popover when clicking outside
+    window.addEventListener('click', function (e) {
+      if (!document.getElementById('dbStatusBtn').contains(e.target) &&
+        !document.getElementById('dbPopover').contains(e.target)) {
+        document.getElementById('dbPopover').classList.remove('open');
+      }
+    });
 
-// ── C5: MRP vs Selling Price ──────────────────────────────
-const cats5 = ['Electronics','Computers','Home','Clothing','Toys'];
-initChart('c5', {
-  grid: { left: 70, right: 10, top: 20, bottom: 40 },
-  xAxis: { type: 'category', data: cats5, axisLabel: { color: '#94a3b8', fontSize: 9, rotate: 10 }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } } },
-  yAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 9, formatter: v => '₹'+v.toLocaleString() }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
-  legend: { bottom: 0, textStyle: { color: '#64748b', fontSize: 9 }, itemWidth: 10, itemHeight: 10 },
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize:11 } },
-  series: [
-    { name: 'MRP', type: 'bar', barWidth: '28%', data: [8200, 5800, 2100, 1200, 990], itemStyle: { color: '#7C6FFF77', borderRadius: [4,4,0,0] } },
-    { name: 'Selling', type: 'bar', barWidth: '28%', data: [2959, 1980, 860, 820, 370], itemStyle: { color: '#00D8B4', borderRadius: [4,4,0,0] } }
-  ]
-});
+    function disconnectDb() {
+      dbConnected = false;
+      document.getElementById('dbPopover').classList.remove('open');
 
-// ── C6: Radar Discount Depth ──────────────────────────────
-initChart('c6', {
-  radar: {
-    indicator: ['Electronics','Computers','Home','Clothing','Toys','Books'].map(n => ({ name: n, max: 70 })),
-    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
-    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
-    name: { textStyle: { color: '#64748b', fontSize: 9 } }
-  },
-  tooltip: { backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
-  series: [{
-    type: 'radar',
-    data: [{ value: [64, 66, 41, 32, 37, 27], name: 'Discount %' }],
-    lineStyle: { color: '#7C6FFF', width: 2 },
-    areaStyle: { color: 'rgba(124,111,255,0.2)' },
-    symbol: 'circle', symbolSize: 5, itemStyle: { color: '#7C6FFF' }
-  }]
-});
+      // Revert topbar button styling
+      const statusBtn = document.getElementById('dbStatusBtn');
+      statusBtn.style.background = '';
+      statusBtn.style.borderColor = '';
+      statusBtn.style.color = '';
+      document.getElementById('dbStatusDot').style.background = '';
+      document.getElementById('dbStatusText').innerText = 'Connect Database';
 
-// ── C7: Top 10 Reviewed ───────────────────────────────────
-const top10Names = [
-  'Amazon Basics USB','boAt Bassheads 100','Redmi 9A Sport','Boat Rockerz 255','MI True Wireless',
-  'JBL C100SI','PTron Tangent','Noise ColorFit Pro','boAt Airdopes 441','Mi Smart Band 5'
-];
-const top10Reviews = [491621,320847,289432,241087,198650,187234,156891,148720,139087,127456];
-initChart('c7', {
-  grid: { left: 130, right: 60, top: 10, bottom: 30 },
-  xAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10, formatter: v => (v/1000).toFixed(0)+'K' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
-  yAxis: { type: 'category', data: top10Names.slice().reverse(), axisLabel: { color: '#94a3b8', fontSize: 9 }, axisLine: { show: false }, axisTick: { show: false } },
-  tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize:11 }, formatter: p => `${p[0].name}<br/>Reviews: ${p[0].value.toLocaleString()}` },
-  series: [{
-    type: 'bar', barMaxWidth: 18,
-    data: [...top10Reviews].reverse(),
-    itemStyle: { borderRadius: [0,7,7,0], color: p => ({ type:'linear', x:0,y:0,x2:1,y2:0, colorStops:[{offset:0,color:'#7C6FFF88'},{offset:1,color:p.dataIndex < 3 ? '#00D8B4' : '#7C6FFF'}] }) },
-    label: { show: true, position: 'right', color: '#94a3b8', fontSize: 9, formatter: p => (p.value/1000).toFixed(0)+'K' }
-  }]
-});
+      // Toggle chat and prompt visibility back
+      const realChat = document.getElementById('realChatContent');
+      realChat.classList.add('chat-content-hidden');
+      document.getElementById('connectPrompt').style.display = 'flex';
 
-// ── C8: Scatter — Reviews vs Rating ──────────────────────
-initChart('c8', {
-  grid: { left: 50, right: 20, top: 20, bottom: 40 },
-  xAxis: { type: 'value', name: 'No. of Reviews', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#64748b', fontSize: 10 }, axisLabel: { color: '#64748b', fontSize: 10, formatter: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
-  yAxis: { type: 'value', name: 'Rating', min: 3, max: 5, nameTextStyle: { color: '#64748b', fontSize: 10 }, axisLabel: { color: '#64748b', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
-  tooltip: { trigger: 'item', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize:11 }, formatter: p => `Reviews: ${p.data[0].toLocaleString()}<br/>Rating: ${p.data[1]}` },
-  series: [{
-    type: 'scatter', symbolSize: p => Math.max(6, Math.min(22, p[0] / 15000)),
-    data: [[491621,4.2],[320847,4.1],[289432,3.9],[241087,4.3],[198650,4.0],[187234,4.1],[156891,4.4],[148720,3.8],[139087,4.2],[127456,4.5],[95000,4.1],[78000,3.9],[62000,4.2],[48000,4.3],[35000,3.7],[22000,4.5],[15000,4.1],[9000,3.9],[5000,4.4],[2500,4.0]],
-    itemStyle: { color: p => { const v=p.data[1]; return v >= 4.3 ? '#00D8B4' : v >= 4.0 ? '#7C6FFF' : '#f472b6'; }, opacity: 0.85 }
-  }]
-});
+      // Open modal again immediately
+      openDbModal();
+    }
 
-// ── Theme Toggle ───────────────────────────────
-function toggleTheme() {
-  const html = document.documentElement;
-  const isLight = html.classList.toggle('light');
-  document.getElementById('iconMoon').style.display = isLight ? 'none' : 'block';
-  document.getElementById('iconSun').style.display  = isLight ? 'block' : 'none';
-  const lightTooltip = { backgroundColor: 'rgba(255,255,255,0.97)', borderColor: 'rgba(0,0,0,0.1)', textStyle: { color: '#0f172a', fontSize: 11 } };
-  const darkTooltip  = { backgroundColor: 'rgba(13,13,26,0.95)',   borderColor: 'rgba(255,255,255,0.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } };
-  _allCharts.forEach(ch => {
-    try { ch.setOption({ tooltip: isLight ? lightTooltip : darkTooltip }); } catch(e) {}
-  });
-}
-</script>
+    function simulateDbConnect() {
+      const btn = document.getElementById('modalConnectBtn');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = 'Connecting...';
+      btn.style.opacity = '0.7';
+      btn.disabled = true;
+
+      setTimeout(() => {
+        closeDbModal();
+        dbConnected = true;
+
+        // Update topbar status
+        const statusBtn = document.getElementById('dbStatusBtn');
+        statusBtn.style.background = 'rgba(0,216,180,0.1)';
+        statusBtn.style.borderColor = 'rgba(0,216,180,0.3)';
+        statusBtn.style.color = 'var(--accent2)';
+        document.getElementById('dbStatusDot').style.background = 'var(--accent2)';
+        document.getElementById('dbStatusText').innerText = 'Connected';
+
+        // Swap prompt with real chat
+        document.getElementById('connectPrompt').style.display = 'none';
+        const realChat = document.getElementById('realChatContent');
+        realChat.classList.remove('chat-content-hidden');
+
+        // Animate chat in slightly
+        realChat.style.opacity = '0';
+        realChat.style.transform = 'translateY(10px)';
+        realChat.style.transition = 'all 0.4s ease';
+        realChat.style.display = 'contents';
+
+        setTimeout(() => {
+          realChat.style.opacity = '1';
+          realChat.style.transform = 'translateY(0)';
+          // Relayout charts since they were initially display:none
+          _allCharts.forEach(ch => { try { ch.resize(); } catch (e) { } });
+
+          // Auto scroll to bottom
+          const area = document.getElementById('chatArea');
+          area.scrollTop = area.scrollHeight;
+        }, 50);
+
+        // Reset button
+        setTimeout(() => {
+          btn.innerHTML = originalHtml;
+          btn.style.opacity = '1';
+          btn.disabled = false;
+        }, 500);
+      }, 1200);
+    }
+
+    // ── Connect Database Modal ──────────────────────────────────
+    function openDbModal() {
+      document.getElementById('dbModal').classList.add('open');
+    }
+    function closeDbModal() {
+      document.getElementById('dbModal').classList.remove('open');
+    }
+    function switchTab(tab) {
+      const isParams = tab === 'params';
+      document.getElementById('tabParams').classList.toggle('active', isParams);
+      document.getElementById('tabUri').classList.toggle('active', !isParams);
+      document.getElementById('panelParams').style.display = isParams ? '' : 'none';
+      document.getElementById('panelUri').style.display = isParams ? 'none' : '';
+    }
+    // Close modal on backdrop click
+    document.getElementById('dbModal').addEventListener('click', closeDbModal);
+
+    // ── Dark theme ─────────────────────────────────────────────
+    const DARK = {
+      backgroundColor: 'transparent',
+      textStyle: { color: '#94a3b8', fontFamily: 'Inter, sans-serif', fontSize: 11 },
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+      tooltip: {
+        backgroundColor: 'rgba(13,13,26,0.95)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        textStyle: { color: '#e2e8f0', fontSize: 11 }
+      }
+    };
+    const COLORS = ['#7C6FFF', '#00D8B4', '#f472b6', '#fb923c', '#60a5fa', '#facc15', '#34d399', '#a78bfa', '#f87171', '#38bdf8', '#4ade80'];
+    const CATS = ['Electronics', 'Computers', 'Home & Kitchen', 'Clothing', 'Toys & Baby', 'Books', 'Sports', 'Beauty', 'Grocery', 'Office', 'Music'];
+
+    const _allCharts = [];
+    function initChart(id, option) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const ch = echarts.init(el, null, { renderer: 'canvas' });
+      ch.setOption({ ...DARK, ...option });
+      window.addEventListener('resize', () => ch.resize());
+      _allCharts.push(ch);
+    }
+
+    // ── C1: Products by Category (Horizontal Bar) ─────────────
+    initChart('c1', {
+      grid: { left: 110, right: 20, top: 10, bottom: 30 },
+      xAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+      yAxis: { type: 'category', data: CATS.slice().reverse(), axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
+      series: [{
+        type: 'bar',
+        data: [280, 390, 510, 640, 720, 850, 980, 1100, 1380, 1650, 2024].reverse(),
+        barMaxWidth: 18,
+        itemStyle: { borderRadius: [0, 6, 6, 0], color: p => ({ type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: COLORS[p.dataIndex % 11] + 'aa' }, { offset: 1, color: COLORS[p.dataIndex % 11] }] }) },
+        label: { show: true, position: 'right', color: '#94a3b8', fontSize: 10, formatter: v => v.value.toLocaleString() }
+      }]
+    });
+
+    // ── C2: Category Share Donut ───────────────────────────────
+    initChart('c2', {
+      tooltip: { trigger: 'item', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
+      legend: { type: 'scroll', orient: 'vertical', right: 10, top: 'middle', textStyle: { color: '#64748b', fontSize: 10 }, itemWidth: 8, itemHeight: 8, icon: 'circle', itemGap: 12 },
+      series: [{
+        type: 'pie', radius: ['45%', '70%'], center: ['38%', '50%'],
+        data: [
+          { name: 'Electronics', value: 2024 }, { name: 'Computers', value: 1650 }, { name: 'Home & Kitchen', value: 1380 },
+          { name: 'Clothing', value: 1100 }, { name: 'Toys & Baby', value: 980 }, { name: 'Books', value: 850 }, { name: 'Others', value: 2540 }
+        ].map((d, i) => ({ ...d, itemStyle: { color: COLORS[i] } })),
+        label: { show: false },
+        emphasis: { itemStyle: { shadowBlur: 16, shadowColor: 'rgba(0,0,0,0.5)' } }
+      }]
+    });
+
+    // ── C3: Avg Rating by Category ────────────────────────────
+    initChart('c3', {
+      grid: { left: 110, right: 30, top: 20, bottom: 30 },
+      xAxis: { type: 'value', min: 3, max: 5, axisLabel: { color: '#64748b', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+      yAxis: { type: 'category', data: CATS, axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
+      series: [{
+        type: 'bar', barMaxWidth: 14,
+        data: [4.1, 4.0, 3.9, 3.8, 4.2, 3.7, 4.0, 4.1, 3.6, 3.9, 4.3],
+        itemStyle: { borderRadius: [0, 5, 5, 0], color: p => ({ type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#7C6FFFaa' }, { offset: 1, color: '#00D8B4' }] }) },
+        label: { show: true, position: 'right', color: '#94a3b8', fontSize: 10, formatter: p => p.value.toFixed(1) }
+      }]
+    });
+
+    // ── C4: Discount Savings Bar ──────────────────────────────
+    initChart('c4', {
+      grid: { left: 110, right: 30, top: 20, bottom: 30 },
+      xAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10, formatter: v => '₹' + v.toLocaleString() }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+      yAxis: { type: 'category', data: ['Grocery', 'Books', 'Clothing', 'Beauty', 'Toys', 'Sports', 'Office', 'Home', 'Computers', 'Electronics'], axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { show: false }, axisTick: { show: false } },
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 }, formatter: p => `${p[0].name}<br/>Avg Savings: ₹${p[0].value.toLocaleString()}` },
+      series: [{
+        type: 'bar', barMaxWidth: 18,
+        data: [89, 210, 380, 450, 620, 780, 890, 1240, 3820, 5241],
+        itemStyle: { borderRadius: [0, 6, 6, 0], color: p => ({ type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: COLORS[p.dataIndex % 11] + '88' }, { offset: 1, color: COLORS[p.dataIndex % 11] }] }) },
+        label: { show: true, position: 'right', color: '#94a3b8', fontSize: 10, formatter: p => '₹' + p.value.toLocaleString() }
+      }]
+    });
+
+    // ── C5: MRP vs Selling Price ──────────────────────────────
+    const cats5 = ['Electronics', 'Computers', 'Home', 'Clothing', 'Toys'];
+    initChart('c5', {
+      grid: { left: 70, right: 10, top: 20, bottom: 40 },
+      xAxis: { type: 'category', data: cats5, axisLabel: { color: '#94a3b8', fontSize: 9, rotate: 10 }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } } },
+      yAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 9, formatter: v => '₹' + v.toLocaleString() }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+      legend: { bottom: 0, textStyle: { color: '#64748b', fontSize: 9 }, itemWidth: 10, itemHeight: 10 },
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
+      series: [
+        { name: 'MRP', type: 'bar', barWidth: '28%', data: [8200, 5800, 2100, 1200, 990], itemStyle: { color: '#7C6FFF77', borderRadius: [4, 4, 0, 0] } },
+        { name: 'Selling', type: 'bar', barWidth: '28%', data: [2959, 1980, 860, 820, 370], itemStyle: { color: '#00D8B4', borderRadius: [4, 4, 0, 0] } }
+      ]
+    });
+
+    // ── C6: Radar Discount Depth ──────────────────────────────
+    initChart('c6', {
+      radar: {
+        indicator: ['Electronics', 'Computers', 'Home', 'Clothing', 'Toys', 'Books'].map(n => ({ name: n, max: 70 })),
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+        name: { textStyle: { color: '#64748b', fontSize: 9 } }
+      },
+      tooltip: { backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } },
+      series: [{
+        type: 'radar',
+        data: [{ value: [64, 66, 41, 32, 37, 27], name: 'Discount %' }],
+        lineStyle: { color: '#7C6FFF', width: 2 },
+        areaStyle: { color: 'rgba(124,111,255,0.2)' },
+        symbol: 'circle', symbolSize: 5, itemStyle: { color: '#7C6FFF' }
+      }]
+    });
+
+    // ── C7: Top 10 Reviewed ───────────────────────────────────
+    const top10Names = [
+      'Amazon Basics USB', 'boAt Bassheads 100', 'Redmi 9A Sport', 'Boat Rockerz 255', 'MI True Wireless',
+      'JBL C100SI', 'PTron Tangent', 'Noise ColorFit Pro', 'boAt Airdopes 441', 'Mi Smart Band 5'
+    ];
+    const top10Reviews = [491621, 320847, 289432, 241087, 198650, 187234, 156891, 148720, 139087, 127456];
+    initChart('c7', {
+      grid: { left: 130, right: 60, top: 10, bottom: 30 },
+      xAxis: { type: 'value', axisLabel: { color: '#64748b', fontSize: 10, formatter: v => (v / 1000).toFixed(0) + 'K' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+      yAxis: { type: 'category', data: top10Names.slice().reverse(), axisLabel: { color: '#94a3b8', fontSize: 9 }, axisLine: { show: false }, axisTick: { show: false } },
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 }, formatter: p => `${p[0].name}<br/>Reviews: ${p[0].value.toLocaleString()}` },
+      series: [{
+        type: 'bar', barMaxWidth: 18,
+        data: [...top10Reviews].reverse(),
+        itemStyle: { borderRadius: [0, 7, 7, 0], color: p => ({ type: 'linear', x: 0, y: 0, x2: 1, y2: 0, colorStops: [{ offset: 0, color: '#7C6FFF88' }, { offset: 1, color: p.dataIndex < 3 ? '#00D8B4' : '#7C6FFF' }] }) },
+        label: { show: true, position: 'right', color: '#94a3b8', fontSize: 9, formatter: p => (p.value / 1000).toFixed(0) + 'K' }
+      }]
+    });
+
+    // ── C8: Scatter — Reviews vs Rating ──────────────────────
+    initChart('c8', {
+      grid: { left: 50, right: 20, top: 20, bottom: 40 },
+      xAxis: { type: 'value', name: 'No. of Reviews', nameLocation: 'middle', nameGap: 25, nameTextStyle: { color: '#64748b', fontSize: 10 }, axisLabel: { color: '#64748b', fontSize: 10, formatter: v => v >= 1000 ? (v / 1000).toFixed(0) + 'K' : v }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+      yAxis: { type: 'value', name: 'Rating', min: 3, max: 5, nameTextStyle: { color: '#64748b', fontSize: 10 }, axisLabel: { color: '#64748b', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } } },
+      tooltip: { trigger: 'item', backgroundColor: 'rgba(13,13,26,.95)', borderColor: 'rgba(255,255,255,.1)', textStyle: { color: '#e2e8f0', fontSize: 11 }, formatter: p => `Reviews: ${p.data[0].toLocaleString()}<br/>Rating: ${p.data[1]}` },
+      series: [{
+        type: 'scatter', symbolSize: p => Math.max(6, Math.min(22, p[0] / 15000)),
+        data: [[491621, 4.2], [320847, 4.1], [289432, 3.9], [241087, 4.3], [198650, 4.0], [187234, 4.1], [156891, 4.4], [148720, 3.8], [139087, 4.2], [127456, 4.5], [95000, 4.1], [78000, 3.9], [62000, 4.2], [48000, 4.3], [35000, 3.7], [22000, 4.5], [15000, 4.1], [9000, 3.9], [5000, 4.4], [2500, 4.0]],
+        itemStyle: { color: p => { const v = p.data[1]; return v >= 4.3 ? '#00D8B4' : v >= 4.0 ? '#7C6FFF' : '#f472b6'; }, opacity: 0.85 }
+      }]
+    });
+
+    // ── Theme Toggle ───────────────────────────────
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isLight = html.classList.toggle('light');
+      document.getElementById('iconMoon').style.display = isLight ? 'none' : 'block';
+      document.getElementById('iconSun').style.display = isLight ? 'block' : 'none';
+      // Sync bottom nav icons too
+      const nm = document.getElementById('navMoon');
+      const ns = document.getElementById('navSun');
+      if (nm) nm.style.display = isLight ? 'none' : 'block';
+      if (ns) ns.style.display = isLight ? 'block' : 'none';
+      const lightTooltip = { backgroundColor: 'rgba(255,255,255,0.97)', borderColor: 'rgba(0,0,0,0.1)', textStyle: { color: '#0f172a', fontSize: 11 } };
+      const darkTooltip = { backgroundColor: 'rgba(13,13,26,0.95)', borderColor: 'rgba(255,255,255,0.1)', textStyle: { color: '#e2e8f0', fontSize: 11 } };
+      _allCharts.forEach(ch => {
+        try { ch.setOption({ tooltip: isLight ? lightTooltip : darkTooltip }); } catch (e) { }
+      });
+    }
+
+    // ── Mobile: Slide-out Drawer Toggle ──────────────
+    function toggleDrawer() {
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.getElementById('drawerOverlay');
+      if (!sidebar || !overlay) return;
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('open');
+    }
+
+    // ── Mobile: Bottom Nav Tab Switching ─────────────
+    function navTo(tab) {
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      const key = 'nav' + tab.charAt(0).toUpperCase() + tab.slice(1);
+      const el = document.getElementById(key);
+      if (el) el.classList.add('active');
+      if (tab === 'schema') {
+        // On schema tab: open the sidebar drawer to show schema explorer
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && !sidebar.classList.contains('open')) toggleDrawer();
+      }
+    }
+  </script>
 </body>
+
 </html>

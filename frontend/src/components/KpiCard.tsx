@@ -1,23 +1,29 @@
 "use client";
 
-import type { EChartsConfig } from "./ChartRenderer";
+import type { VisualizerBlock } from "./ChartRenderer";
 
 interface KpiCardProps {
-    config: EChartsConfig;
+    block: VisualizerBlock;
 }
 
-export default function KpiCard({ config }: KpiCardProps) {
-    // title can be a string or an ECharts object {text, textStyle}
-    const rawTitle = config.title;
+export default function KpiCard({ block }: KpiCardProps) {
+    if (!block) return null;
+
+    const { title: blockTitle, config } = block;
+    // Support legacy where config was passed flat, or new where config is nested
+    const innerConfig = config || block;
+
+    // title can be a string on the block, or an ECharts object inner {text, textStyle}
+    const rawTitle = blockTitle || innerConfig.title;
     const title: string =
         typeof rawTitle === "string"
             ? rawTitle
             : rawTitle && typeof rawTitle === "object" && "text" in (rawTitle as object)
                 ? String((rawTitle as Record<string, unknown>).text)
                 : "KPI";
-    const value = config.formatted_value ?? config.value ?? "—";
-    const delta = config.delta as string | undefined;
-    const direction = (config.delta_direction as string) || "neutral";
+    const value = innerConfig.formatted_value ?? innerConfig.value ?? "—";
+    const delta = innerConfig.delta as string | undefined;
+    const direction = (innerConfig.delta_direction as string) || "neutral";
 
     const deltaColor =
         direction === "up"

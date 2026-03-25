@@ -82,15 +82,31 @@ User Question
 
 ## What Happens in Real-Time?
 
-The system doesn't make users wait for everything to finish. It **streams updates** step by step:
+The system doesn't make users wait for everything to finish. It **streams updates** step by step using a live **"Thinking Panel"** displayed directly in the chat:
 
-1. ⚡ *"Understood your question — it's a data query"*
-2. 🔍 *"Looking up relevant tables in your database schema..."*
-3. 📝 *"Generated SQL query"* → shows the SQL
-4. 📊 *"Here are your results"* → shows the charts
-5. 💬 *"Here's a plain-English summary"* → shows the explanation
+1. 🔀 *"Routing your question to the right agent..."*
+2. 🔍 *"Scanning the database schema for relevant tables..."*
+3. 📝 *"Composing a precise SQL query..."*
+4. 🛡️ *"Senior QA agent reviewing for accuracy..."*
+5. ⚡ *"Executing the query against the live database..."*
+6. 📊 *"Analyzing N rows — picking the best charts and visuals..."*
+7. 💬 *"Crafting business summary and key insights..."*
 
-This is done using **Server-Sent Events (SSE)** — the page updates live, like a loading progress bar.
+Once all steps complete, the Thinking Panel **collapses** into a clean `✅ Thought for N steps` header, and the final result (SQL, charts, summary) appears below — exactly like Claude's reasoning UI.
+
+This is done using **Server-Sent Events (SSE)** — the page updates live without any page reloads.
+
+---
+
+## Recent Enhancements
+
+| Feature | Description |
+|---|---|
+| 🧠 **Thinking Panel** | Live Claude-style collapsible step panel during query processing |
+| 💾 **Schema Caching** | MD5 hash of schema saved to disk — skips Gemini embedding API if DB schema unchanged |
+| ⚡ **Redis Cache** | Query results cached with configurable TTL — repeated questions return instantly |
+| 👤 **User Profiles** | Editable job title, company, department, and bio — persisted to Supabase Auth metadata |
+| 📊 **Dynamic Dispatch** | Visualizer now returns multiple typed blocks (KPI / Table / ECharts) for flexible rendering |
 
 ---
 

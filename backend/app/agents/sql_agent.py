@@ -22,6 +22,9 @@ Rules:
 - Use only SELECT or WITH statements.
 - Always use proper table and column names from the schema provided.
 - Never use DROP, DELETE, UPDATE, INSERT, or any mutation.
+- NEVER use JSON formatting functions like `json_agg`, `row_to_json`, or `array_agg` to build complex nested responses.
+- Always return standard flat relational tables (rows and columns).
+- If the user asks a multi-part question (e.g. "totals and a list"), write a query that returns the MOST DETAILED list of raw data. Do NOT try to return totals and lists in a single JSON row. The downstream visualizer will calculate totals from your raw data.
 """
 
 async def generate_sql(schema_context: str, user_query: str, history: list = None, error_context: str = None) -> str:

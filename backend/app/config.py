@@ -15,9 +15,12 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_sql_model: str = "anthropic/claude-3.5-sonnet"
 
-    # --- Target PostgreSQL Database ---
+    # --- Target PostgreSQL Database (Client's DB - for SQL queries only) ---
     target_db_url: str = ""
     target_schema: str = "public"
+
+    # --- System PostgreSQL Database (Permanent Supabase - for all pgvector storage) ---
+    system_db_url: str = ""
 
     # --- Vector Store (LlamaIndex + pgvector) ---
     use_pgvector: bool = True

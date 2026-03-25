@@ -33,3 +33,8 @@ flower==2.0.1                     # Celery monitoring UI
 
 # ── Utilities ─────────────────────────────────────────────────
 python-dotenv==1.0.1
+
+python-multipart
+pypdf
+
+llama-index-llms-gemini

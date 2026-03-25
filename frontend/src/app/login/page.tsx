@@ -78,15 +78,6 @@ export default function LoginPage() {
                         </div>
                     </div>
 
-                    {/* Divider with label */}
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
-                        <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>
-                            Continue with
-                        </span>
-                        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
-                    </div>
-
                     {/* Error */}
                     {error && (
                         <div
@@ -102,7 +93,7 @@ export default function LoginPage() {
                     )}
 
                     {/* OAuth Buttons */}
-                    <div className="space-y-3">
+                    <div className="space-y-3 mb-6 mx-auto" style={{ maxWidth: "320px" }}>
                         {/* Google */}
                         <button
                             onClick={handleGoogle}
@@ -157,6 +148,59 @@ export default function LoginPage() {
                         </button>
                     </div>
 
+                    {/* Divider with label */}
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>
+                            OR CONTINUE WITH EMAIL
+                        </span>
+                        <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.07)" }} />
+                    </div>
+
+                    {/* Email and Password form */}
+                    <form className="space-y-4 mb-3" onSubmit={(e) => e.preventDefault()}>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="email"
+                                placeholder="Email address"
+                                className="w-full bg-black/20 border border-white/5 rounded-xl pl-11 pr-4 py-3 text-[13px] text-white placeholder-white/30 focus:outline-none focus:border-[#7C6FFF]/50 focus:ring-1 focus:ring-[#7C6FFF]/50 transition-all font-medium"
+                                style={{ boxShadow: "inset 0 2px 4px rgba(0,0,0,0.1)" }}
+                            />
+                        </div>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                            </div>
+                            <input
+                                type="password"
+                                placeholder="Password"
+                                className="w-full bg-black/20 border border-white/5 rounded-xl pl-11 pr-4 py-3 text-[13px] text-white placeholder-white/30 focus:outline-none focus:border-[#7C6FFF]/50 focus:ring-1 focus:ring-[#7C6FFF]/50 transition-all font-medium"
+                                style={{ boxShadow: "inset 0 2px 4px rgba(0,0,0,0.1)" }}
+                            />
+                        </div>
+                        <div className="flex justify-end pt-1">
+                            <a href="#" className="text-[11px] font-semibold transition-colors hover:text-[#00e0c5]" style={{ color: "#00C9B1" }}>
+                                Forgot password?
+                            </a>
+                        </div>
+                    </form>
+
+                    <button
+                        className="w-full py-3 rounded-xl font-semibold text-[14px] text-white transition-all hover:opacity-90 active:scale-[0.99]"
+                        style={{
+                            background: "#7C6FFF",
+                        }}
+                    >
+                        Sign In
+                    </button>
+
                     {/* Footer note */}
                     <p className="text-center text-[11px] mt-6" style={{ color: "rgba(255,255,255,0.2)" }}>
                         By continuing, you agree to our Terms of Service.<br />
@@ -168,7 +212,7 @@ export default function LoginPage() {
             {/* Bottom badge */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
                 <p className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.15)" }}>
-                    Powered by Gemini 1.5 Pro
+                    
                 </p>
             </div>
         </div>

@@ -2,6 +2,7 @@
 backend/venv/
 backend/.env
 backend/__pycache__/
+backend/app/__pycache__/
 backend/**/__pycache__/
 backend/**/*.pyc
 backend/*.pyc
@@ -9,6 +10,8 @@ backend/.pytest_cache/
 backend/data/*.pdf
 backend/data/*.txt
 !backend/data/README.txt
+backend/uploads/
+backend/**/.schema_hash.json
 
 # --- Node.js (Frontend) ---
 frontend/node_modules/
