@@ -36,7 +36,7 @@ async def review_sql(schema_context: str, user_query: str, generated_sql: str) -
     
     try:
         completion = await client.chat.completions.create(
-            model=settings.groq_qa_model,
+            model=settings.qa_critic_model,
             messages=[
                 {"role": "system", "content": QA_SYSTEM},
                 {"role": "user", "content": prompt}

@@ -17,6 +17,8 @@ from app.agents.doc_agent import query_documents
 from app.agents.qa_agent import review_sql
 from app.agents.visualizer_agent import generate_charts
 from app.agents.analyst_agent import explain_results, chat_fallback
+from app.agents.python_analyst_agent import run_python_sandbox
+from app.agents.refiner_agent import refine_final_report
 
 logger = logging.getLogger(__name__)
 
@@ -89,19 +91,46 @@ async def run_pipeline(user_query: str, history: list) -> AsyncGenerator[dict, N
         # Emit final approved SQL
         yield {"event": "sql_generated", "data": {"sql": sql}}
 
-        # 8. Execution
+        # 8. Execution & Auto-Correction Engine
         yield {"event": "step", "data": {"label": "Executing query against the live database..."}}
-        rows, columns = await execute_sql(sql)
+        
+        max_retries = 2
+        attempts = 1 if qa_result.get("is_valid", True) else 2
+        rows, columns = None, None
+        
+        for attempt in range(max_retries + 1):
+            try:
+                rows, columns = await execute_sql(sql)
+                break  # Execution successful
+            except Exception as e:
+                error_msg = str(e)
+                logger.warning(f"[Orchestrator] SQL execution failed (attempt {attempt+1}): {error_msg}")
+                
+                if attempt < max_retries:
+                    yield {"event": "step", "data": {"label": f"Database error detected. AI is auto-correcting the query (Attempt {attempt + 1})..."}}
+                    error_context = f"The previous SQL query failed with this error:\n{error_msg}\n\nPlease fix the query so it is valid. CRITICAL: Pay exact attention to table names from the schema."
+                    
+                    # Reflection: Re-generate SQL with error context
+                    sql = await generate_sql(schema_context, user_query, history, error_context)
+                    yield {"event": "sql_generated", "data": {"sql": sql}} # emit modified SQL
+                    attempts += 1
+                else:
+                    raise RuntimeError(f"Database error after {max_retries} automatic retry attempts:\n{error_msg}")
+
         yield {
             "event": "query_result",
             "data": {
                 "rows": rows,
                 "columns": columns,
                 "sql_used": sql,
-                "attempts": 2 if not qa_result.get("is_valid", True) else 1,
+                "attempts": attempts,
                 "row_count": len(rows),
             }
         }
+
+        # 8.5. Python Sandbox Agent
+        yield {"event": "step", "data": {"label": "Checking if advanced Data Science math is needed..."}}
+        rows, columns = await run_python_sandbox(user_query, rows, columns)
 
         # 9. Visualizer Agent
         yield {"event": "step", "data": {"label": f"Analyzing {len(rows)} rows — deciding the best charts and visuals..."}}
@@ -112,8 +141,13 @@ async def run_pipeline(user_query: str, history: list) -> AsyncGenerator[dict, N
 
         # 10. Analyst Agent
         yield {"event": "step", "data": {"label": "Crafting a business summary and key insights..."}}
-        explanation = await explain_results(user_query, rows, columns)
-        yield {"event": "explanation", "data": {"text": explanation}}
+        raw_explanation = await explain_results(user_query, rows, columns)
+        
+        # 10.5 Refiner Agent
+        yield {"event": "step", "data": {"label": "Refining final report for publishing..."}}
+        refined_explanation = await refine_final_report(user_query, raw_explanation)
+        
+        yield {"event": "explanation", "data": {"text": refined_explanation}}
 
         # 11. Cache Results
         await set_cached(user_query, {
@@ -121,7 +155,7 @@ async def run_pipeline(user_query: str, history: list) -> AsyncGenerator[dict, N
             "rows": rows,
             "columns": columns,
             "charts": charts,
-            "explanation": explanation,
+            "explanation": refined_explanation,
         })
 
     except ValueError as e:

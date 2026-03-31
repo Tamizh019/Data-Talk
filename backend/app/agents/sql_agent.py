@@ -1,7 +1,6 @@
 """
-SQL Developer Agent (Google Gemini)
+SQL Developer Agent
 Generates complex PostgreSQL statements based on the schema and question.
-Handles very large schema contexts and history using Gemini's huge context window.
 """
 import logging
 import google.generativeai as genai
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 genai.configure(api_key=settings.gemini_api_key)
-_model = genai.GenerativeModel(settings.gemini_model)
+_model = genai.GenerativeModel("gemini-3.1-pro-preview")
 
 SQL_SYSTEM = """You are an expert PostgreSQL SQL generator.
 Your ONLY output is a single, valid, read-only SQL SELECT statement.
@@ -20,7 +19,8 @@ Only output the raw SQL query itself ending with a semicolon.
 
 Rules:
 - Use only SELECT or WITH statements.
-- Always use proper table and column names from the schema provided.
+- Always use the EXACT table and column names from the schema provided. 
+- CRITICAL: Do NOT guess or pluralize table names (e.g., do not use `students` if the schema says `student_database`). If you use a table that is not in the schema, the query will crash!
 - Never use DROP, DELETE, UPDATE, INSERT, or any mutation.
 - NEVER use JSON formatting functions like `json_agg`, `row_to_json`, or `array_agg` to build complex nested responses.
 - Always return standard flat relational tables (rows and columns).
@@ -36,8 +36,18 @@ async def generate_sql(schema_context: str, user_query: str, history: list = Non
         recent_history = history[-4:]
         lines = []
         for msg in recent_history:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            content = msg.get("content", str(msg)) if isinstance(msg, dict) else str(msg)
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            
+            if isinstance(msg, dict):
+                if "content" in msg:
+                    content = msg["content"]
+                elif "parts" in msg and msg["parts"]:
+                    content = msg["parts"][0]
+                else:
+                    content = str(msg)
+            else:
+                content = str(msg)
+                
             lines.append(f"{role}: {content[:500]}")
         if lines:
             history_text = "### Recent Conversation Context (for reference)\n" + "\n".join(lines) + "\n\n"

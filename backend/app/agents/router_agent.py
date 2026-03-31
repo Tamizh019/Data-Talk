@@ -38,8 +38,18 @@ async def classify_intent(query: str, history: list = None) -> str:
         recent_history = history[-4:]
         lines = []
         for msg in recent_history:
-            role = "User" if msg["role"] == "user" else "Assistant"
-            content = msg.get("content", str(msg)) if isinstance(msg, dict) else str(msg)
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            
+            if isinstance(msg, dict):
+                if "content" in msg:
+                    content = msg["content"]
+                elif "parts" in msg and msg["parts"]:
+                    content = msg["parts"][0]
+                else:
+                    content = str(msg)
+            else:
+                content = str(msg)
+                
             lines.append(f"{role}: {content[:150]}")
         if lines:
             history_text = "Recent context:\n" + "\n".join(lines) + "\n\n"
@@ -48,7 +58,7 @@ async def classify_intent(query: str, history: list = None) -> str:
     
     try:
         completion = await client.chat.completions.create(
-            model=settings.groq_router_model,
+            model=settings.router_model,
             messages=[
                 {"role": "system", "content": INTENT_SYSTEM},
                 {"role": "user", "content": prompt}

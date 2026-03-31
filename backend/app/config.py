@@ -4,16 +4,21 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # --- LLM — Google Gemini (SQL generation + Conversation) ---
+    # --- API Keys ---
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.1-pro-preview"
-
-    # --- Multi-Agent Setup (Groq & OpenRouter) ---
     groq_api_key: str = ""
-    groq_router_model: str = "llama-3.1-8b-instant"
-    groq_qa_model: str = "llama-3.3-70b-versatile"
-    openrouter_api_key: str = ""
-    openrouter_sql_model: str = "anthropic/claude-3.5-sonnet"
+    github_token: str = ""
+    hf_token: str = ""
+
+    # --- Multi-Agent Setup (The 9-Agent Workflow) ---
+    router_model: str = "llama-3.1-8b-instant"
+    doc_rag_model: str = "llama-3.3-70b-versatile"
+    visualizer_model: str = "gemini-3.1-pro-preview"
+    sql_generator_model: str = "gemini-3.1-pro-preview"
+    qa_critic_model: str = "llama-3.3-70b-versatile"
+    python_agent_model: str = "llama-3.3-70b-versatile"
+    business_analyst_model: str = "llama-3.3-70b-versatile"
+    refiner_model: str = "llama-3.1-8b-instant"
 
     # --- Target PostgreSQL Database (Client's DB - for SQL queries only) ---
     target_db_url: str = ""
@@ -33,7 +38,7 @@ class Settings(BaseSettings):
 
     # --- Security ---
     max_query_rows: int = 1000
-    allowed_sql_prefixes: str = "SELECT,WITH" 
+    allowed_sql_prefixes: str = "SELECT,WITH"
 
     # --- CORS ---
     frontend_url: str = "http://localhost:3000"

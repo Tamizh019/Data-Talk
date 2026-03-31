@@ -31,10 +31,7 @@ export default function DashboardPanel({ charts }: DashboardPanelProps) {
                     className="w-1.5 h-1.5 rounded-full"
                     style={{ background: "#00C9B1", boxShadow: "0 0 6px #00C9B1" }}
                 />
-                <span
-                    className="text-[10px] font-semibold uppercase tracking-widest"
-                    style={{ color: "rgba(255,255,255,0.3)" }}
-                >
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                     Dashboard &middot; {totalItems} component{totalItems !== 1 ? "s" : ""}
                 </span>
             </div>

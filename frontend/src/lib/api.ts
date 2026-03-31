@@ -11,6 +11,9 @@ export interface ChatMessage {
     content?: string;
     sql?: string;
     charts?: EChartsConfig[];
+    rows?: Record<string, any>[];     // stored for studio restore (capped at 500)
+    columns?: string[];               // column names matching rows
+    queryId?: string;                 // links this message to a QueryEntry in StudioContext
     rowCount?: number;
     attempts?: number;
     isCached?: boolean;

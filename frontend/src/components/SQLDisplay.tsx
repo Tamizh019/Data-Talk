@@ -23,21 +23,19 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
         <div
             className="overflow-hidden rounded-xl mt-3 shadow-lg"
             style={{
-                background: "rgba(7, 7, 13, 0.8)",
-                backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255,255,255,0.07)",
+                background: "var(--code-bg)",
+                border: "1px solid rgba(124,111,255,0.20)",
             }}
         >
             {/* Header */}
             <div
                 className="flex items-center justify-between py-2.5 px-4"
                 style={{
-                    background: "rgba(13, 13, 22, 0.9)",
-                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(20, 20, 35, 0.95)",
+                    borderBottom: "1px solid rgba(124,111,255,0.15)",
                 }}
             >
                 <div className="flex items-center gap-2.5">
-                    {/* DB columns icon */}
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7C6FFF" strokeWidth="2">
                         <rect x="3" y="3" width="4" height="18" /><rect x="10" y="3" width="4" height="18" /><rect x="17" y="3" width="4" height="18" />
                     </svg>
@@ -51,9 +49,9 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
                         <span
                             className="text-[10px] font-medium px-2 py-0.5 rounded-md"
                             style={{
-                                background: "rgba(255,255,255,0.05)",
-                                border: "1px solid rgba(255,255,255,0.06)",
-                                color: "rgba(255,255,255,0.35)",
+                                background: "rgba(255,255,255,0.07)",
+                                border: "1px solid rgba(255,255,255,0.10)",
+                                color: "rgba(255,255,255,0.45)",
                             }}
                         >
                             {attempts} attempts
@@ -62,8 +60,8 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
                     <span
                         className="hidden sm:flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md"
                         style={{
-                            background: "rgba(16,185,129,0.1)",
-                            border: "1px solid rgba(16,185,129,0.2)",
+                            background: "rgba(16,185,129,0.12)",
+                            border: "1px solid rgba(16,185,129,0.25)",
                             color: "#34d399",
                         }}
                     >
@@ -74,9 +72,9 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
                         onClick={handleCopy}
                         className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors"
                         style={{
-                            background: copied ? "rgba(0,201,177,0.15)" : "rgba(255,255,255,0.06)",
-                            color: copied ? "#00C9B1" : "rgba(255,255,255,0.5)",
-                            border: `1px solid ${copied ? "rgba(0,201,177,0.3)" : "rgba(255,255,255,0.08)"}`,
+                            background: copied ? "rgba(0,201,177,0.15)" : "rgba(255,255,255,0.07)",
+                            color: copied ? "#00C9B1" : "rgba(255,255,255,0.55)",
+                            border: `1px solid ${copied ? "rgba(0,201,177,0.35)" : "rgba(255,255,255,0.10)"}`,
                         }}
                     >
                         <Copy className="w-3 h-3" />
@@ -85,7 +83,7 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
                 </div>
             </div>
 
-            {/* Code */}
+            {/* Code — always dark, keeps code readable in both themes */}
             <SyntaxHighlighter
                 language="sql"
                 style={oneDark}

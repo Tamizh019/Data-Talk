@@ -3,6 +3,8 @@ import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { AuthProvider } from "@/lib/auth-context";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { StudioProvider } from "@/lib/studio-context";
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -24,11 +26,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={cn("dark antialiased", inter.variable, "font-sans", geist.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("antialiased", inter.variable, "font-sans", geist.variable)}>
       <body className="font-[var(--font-inter)] bg-background text-foreground">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthProvider>
+            <StudioProvider>
+              {children}
+            </StudioProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 genai.configure(api_key=settings.gemini_api_key)
-_model = genai.GenerativeModel(settings.gemini_model)
+_model = genai.GenerativeModel(settings.visualizer_model)
 
 # ── Phase 1: Extract structured data from document ──────────────────────────
 

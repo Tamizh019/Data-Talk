@@ -1,36 +1,48 @@
 """
-Analyst Agent (Gemini Pro)
+Analyst Agent (Groq Llama-3.3-70b-versatile)
 Provides the final, friendly business explanation of the data, and handles general chit-chat.
 """
 import logging
-import google.generativeai as genai
+from groq import AsyncGroq
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-genai.configure(api_key=settings.gemini_api_key)
-_model = genai.GenerativeModel(settings.gemini_model)
+client = AsyncGroq(api_key=settings.groq_api_key)
 
 ANALYST_SYSTEM = """You are Data-Talk AI, a friendly Senior Data Analyst.
 You help non-technical managers understand their business data.
-Keep answers concise, clear, and jargon-free (2-3 sentences max).
+Keep answers concise, clear, and jargon-free (2-3 sentences max for the explanation).
 Do NOT mention SQL, databases, or 'arrays' directly. Speak purely about the business insights.
+
+IMPORTANT: You MUST ALWAYS end your response with exactly 3 highly relevant, interesting follow-up questions the user could ask next to dig deeper into the data or business context.
+Format them exactly like this at the very end of your response, separated by a blank line:
+🔍 **Follow-up Questions You Can Ask:**
+• [Question 1]
+• [Question 2]
+• [Question 3]
 """
 
 async def explain_results(question: str, rows: list, columns: list) -> str:
     """Explains a SQL data result set in plain English."""
     preview = rows[:5] if rows else []
     prompt = (
-        f"{ANALYST_SYSTEM}\n\n"
         f"User asked: \"{question}\"\n"
         f"Data returned {len(rows)} rows. Sample: {preview}\n\n"
         f"Explain this result to the user:"
     )
     
     try:
-        response = await _model.generate_content_async(prompt)
-        return response.text.strip()
+        completion = await client.chat.completions.create(
+            model=settings.business_analyst_model,
+            messages=[
+                {"role": "system", "content": ANALYST_SYSTEM},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        )
+        return completion.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"AnalystAgent explanation failed: {e}")
         return "Here is the data you requested."
@@ -38,18 +50,33 @@ async def explain_results(question: str, rows: list, columns: list) -> str:
 async def chat_fallback(history: list, user_query: str) -> str:
     """Handles general chit-chat using prior history."""
     try:
-        # Convert abstract history format to Gemini format
-        gemini_history = []
+        messages = [{"role": "system", "content": ANALYST_SYSTEM}]
         if history:
             for msg in history:
-                gemini_history.append({
-                    "role": "user" if msg["role"] == "user" else "model",
-                    "parts": [msg.get("content", str(msg)) if isinstance(msg, dict) else str(msg)]
+                role = "assistant" if msg.get("role") == "model" else msg.get("role", "user")
+                
+                if isinstance(msg, dict):
+                    if "content" in msg:
+                        content = msg["content"]
+                    elif "parts" in msg and msg["parts"]:
+                        content = msg["parts"][0]
+                    else:
+                        content = str(msg)
+                else:
+                    content = str(msg)
+                    
+                messages.append({
+                    "role": role,
+                    "content": content
                 })
+        messages.append({"role": "user", "content": user_query})
         
-        chat = _model.start_chat(history=gemini_history)
-        response = await chat.send_message_async(f"{ANALYST_SYSTEM}\n\nUser: {user_query}")
-        return response.text.strip()
+        completion = await client.chat.completions.create(
+            model=settings.business_analyst_model,
+            messages=messages,
+            temperature=0.5
+        )
+        return completion.choices[0].message.content.strip()
     except Exception as e:
         logger.error(f"AnalystAgent chat failed: {e}")
         return "I'm having trouble thinking right now. Could you ask again?"
