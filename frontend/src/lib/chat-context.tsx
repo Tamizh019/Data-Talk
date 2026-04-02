@@ -18,6 +18,7 @@ interface ChatContextType {
     createNewChat: () => void;
     setActiveChat: (id: string) => void;
     deleteChat: (id: string) => void;
+    renameChat: (id: string, newTitle: string) => void;
     updateMessages: (id: string, updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
 }
 
@@ -102,6 +103,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
     };
 
+    const renameChat = (id: string, newTitle: string) => {
+        setConversations(prev => prev.map(c =>
+            c.id === id ? { ...c, title: newTitle.trim() || "Untitled" } : c
+        ));
+    };
+
     const updateMessages = (id: string, updater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
         setConversations(prev => prev.map(c => {
             if (c.id === id) {
@@ -131,6 +138,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             createNewChat,
             setActiveChat,
             deleteChat,
+            renameChat,
             updateMessages
         }}>
             {children}

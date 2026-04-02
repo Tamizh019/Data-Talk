@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
     Send, Mic, Paperclip, Zap, CheckCircle2, ChevronDown, ChevronUp,
     BarChart2, SlidersHorizontal, X, Database, ChevronRight, Activity, Filter, Search,
+    ShieldAlert, Sparkles, ArrowRight,
 } from "lucide-react";
 import { streamChat, type ChatMessage } from "@/lib/api";
 import SQLDisplay from "./SQLDisplay";
@@ -14,6 +15,8 @@ import { useStudio } from "@/lib/studio-context";
 import type { VisualizerBlock } from "@/components/ChartRenderer";
 import ChartCard from "./studio/ChartCard";
 import DataTable from "./DataTable";
+import ThinkingSteps from "./ThinkingSteps";
+import type { ThinkingStep } from "@/lib/api";
 
 interface ChatWindowProps { dbConnected?: boolean; }
 
@@ -431,10 +434,12 @@ function InlineChartBlock({
     );
 }
 
+
+
 // ── Parsed Follow-Ups Component ───────────────────────────────────────────────
 function ParsedMessageContent({ content, onSend, isDark }: { content: string, onSend: (q: string) => void, isDark: boolean }) {
-    // Match both plain text and **bold** markdown versions of the follow-up header
-    const FOLLOWUP_REGEX = /(?:🔍\s*)?(?:\*\*)?Follow-up Questions(?:[^:]*)?:?(?:\*\*)?\s*/i;
+    // Matches all variations: "Follow-ups:", "Follow-up Questions", "Explore further:"
+    const FOLLOWUP_REGEX = /(?:\n---\n|\n---|\n)?\s*(?:🔍\s*)?(?:\*\*)?(?:Follow-ups?|Follow-up Questions(?:[^:]*)?|Explore further)(?:\*\*)?:?\s*/i;
     const hasFollowUps = FOLLOWUP_REGEX.test(content);
 
     if (!hasFollowUps) {
@@ -444,68 +449,51 @@ function ParsedMessageContent({ content, onSend, isDark }: { content: string, on
     const parts = content.split(FOLLOWUP_REGEX);
     if (parts.length < 2) return <MarkdownRenderer content={content} />;
 
-    const mainContent = parts[0].trim();
-    // Each follow-up may be: "• Question text" or "- Question" or "* Question" or plain line
+    // Clean main content — remove any trailing --- separator
+    const mainContent = parts[0].replace(/\n---\s*$/, "").trim();
     const followUps = parts[parts.length - 1]
-        .split(/\n|(?<=\?\s*)•/)
-        .map(l => l.replace(/^[•\-\*\d\.\s]+/, '').trim())
-        .filter(l => l.length > 5);
+        .split(/\n/)
+        .map(l => l.replace(/^[\s•\-\*\[\]\d\.]+/, '').trim())
+        .filter(l => l.length > 5 && !l.startsWith("#") && !l.startsWith("---"));
 
     return (
         <div className="flex flex-col gap-3 w-full">
             {mainContent && <MarkdownRenderer content={mainContent} />}
 
             {followUps.length > 0 && (
-                <div className="mt-3 flex flex-col gap-2">
-                    {/* Section divider */}
-                    <div className="flex items-center gap-2 mb-1">
-                        <div className="h-px flex-1" style={{ background: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)" }} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 flex items-center gap-1.5">
-                            <Zap className="w-3 h-3" style={{ color: "#7C6FFF" }} />
-                            Ask a follow-up
-                        </span>
-                        <div className="h-px flex-1" style={{ background: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)" }} />
-                    </div>
+                <div className="mt-5 flex flex-col gap-2.5">
+                    {/* Section heading */}
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-muted-foreground/50 mb-1">
+                        Explore Further
+                    </p>
 
-                    {/* Clickable bubble chips */}
+                    {/* Clean follow-up chips */}
                     <div className="flex flex-col gap-2">
                         {followUps.map((q, i) => (
                             <button
                                 key={i}
                                 onClick={() => onSend(q)}
-                                className="group text-left text-[12.5px] font-medium px-4 py-3 rounded-2xl transition-all duration-150 flex items-center gap-3 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.98]"
+                                className="group text-left text-[13px] font-medium px-5 py-3.5 rounded-2xl transition-all duration-200 flex items-center gap-3 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.98]"
                                 style={{
-                                    background: isDark
-                                        ? "linear-gradient(135deg, rgba(124,111,255,0.10) 0%, rgba(0,201,177,0.06) 100%)"
-                                        : "linear-gradient(135deg, rgba(124,111,255,0.07) 0%, rgba(0,201,177,0.04) 100%)",
-                                    border: isDark
-                                        ? "1px solid rgba(124,111,255,0.22)"
-                                        : "1px solid rgba(124,111,255,0.18)",
-                                    borderRadius: "14px",
+                                    background: isDark ? "var(--glass-bg-hover)" : "rgba(255,255,255,0.95)",
+                                    border: isDark ? "1px solid var(--glass-border-strong)" : "1px solid rgba(124,111,255,0.15)",
+                                    borderLeft: "3px solid rgba(124,111,255,0.35)",
+                                    borderRadius: "16px",
                                     boxShadow: isDark
-                                        ? "0 2px 8px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)"
-                                        : "0 2px 8px rgba(0,0,0,0.06)",
+                                        ? "0 1px 4px rgba(0,0,0,0.2)"
+                                        : "0 1px 4px rgba(0,0,0,0.04)",
                                 }}
                             >
-                                {/* Left icon badge */}
-                                <span
-                                    className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-all duration-200 group-hover:scale-110 group-hover:rotate-12"
-                                    style={{ background: "rgba(124,111,255,0.15)", color: "#7C6FFF" }}
-                                >
-                                    <Zap className="w-3.5 h-3.5" />
-                                </span>
-
-                                {/* Question text */}
                                 <span
                                     className="leading-snug flex-1"
-                                    style={{ color: isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.68)" }}
+                                    style={{ color: isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.72)" }}
                                 >
                                     {q}
                                 </span>
 
-                                {/* Arrow hint */}
-                                <ChevronRight
-                                    className="w-3.5 h-3.5 opacity-0 -translate-x-1 group-hover:opacity-40 group-hover:translate-x-0 transition-all duration-150 shrink-0"
+                                {/* Arrow — visible on hover */}
+                                <ArrowRight
+                                    className="w-4 h-4 opacity-0 -translate-x-1 group-hover:opacity-50 group-hover:translate-x-0 transition-all duration-200 shrink-0"
                                     style={{ color: "#7C6FFF" }}
                                 />
                             </button>
@@ -524,7 +512,6 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [collapsedThinking, setCollapsedThinking] = useState<Record<number, boolean>>({});
     
     // Lifted Filter State & Intersection Observer state
     const [filterStates, setFilterStates] = useState<Record<number, MsgFilter[]>>({});
@@ -575,12 +562,20 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
         const text = (overrideText || input).trim();
         if (!text || isLoading || !activeId) return;
 
-        updateMessages(activeId, (p) => [...p, { role: "user", content: text, createdAt: Date.now() }, { role: "assistant", isStreaming: true, createdAt: Date.now(), steps: [{ label: "Connecting to agent...", status: "pending" }] }]);
+        updateMessages(activeId, (p) => [...p, { role: "user", content: text, createdAt: Date.now() }, { role: "assistant", isStreaming: true, createdAt: Date.now(), steps: [] }]);
         setInput(""); if (textareaRef.current) textareaRef.current.style.height = "auto";
         setIsLoading(true);
 
-        const history = messages.filter(m => m.content).map(m => ({ role: m.role === "user" ? "user" : "model", parts: [m.content ?? ""] }));
-
+        const history = messages.map(m => {
+            let text = m.content || "";
+            if (m.role === "assistant" && m.sql) {
+                text += `\n[Previously executed SQL: ${m.sql}]`;
+            }
+            return {
+                role: m.role === "user" ? "user" : "model",
+                parts: [text.trim() || "[Action Completed]"]
+            };
+        });
         pendingRows.current = []; pendingColumns.current = []; pendingCharts.current = []; pendingQuestion.current = text; pendingSql.current = "";
 
         await streamChat(activeId, text, history, {
@@ -590,15 +585,27 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
             onExplanation: (text) => updateMessages(activeId, p => p.map((m, i) => i === p.length - 1 ? { ...m, content: text } : m)),
             onCached: (data: any) => updateMessages(activeId, p => p.map((m, i) => i === p.length - 1 ? { ...m, sql: data.sql, charts: data.charts, content: data.explanation, isCached: true } : m)),
             onError: (message) => updateMessages(activeId, p => p.map((m, i) => i === p.length - 1 ? { ...m, content: undefined, error: message } : m)),
-            onStep: (label) => updateMessages(activeId, p => p.map((m, i) => {
+            // New structured step handler — merges running/done updates by step id
+            onThinkingStep: (incomingStep) => updateMessages(activeId, p => p.map((m, i) => {
                 if (i !== p.length - 1) return m;
-                const done = (m.steps || []).map(s => ({ ...s, status: "done" as const }));
-                return { ...m, steps: [...done, { label, status: "pending" as const }] };
+                const existing = (m.steps ?? []) as ThinkingStep[];
+                const idx = existing.findIndex((s) => s.id === incomingStep.id);
+                let updated: ThinkingStep[];
+                if (idx >= 0) {
+                    // Merge duration_ms and status into the existing step entry
+                    updated = existing.map((s, si) =>
+                        si === idx ? { ...s, ...incomingStep } : s
+                    );
+                } else {
+                    // Brand-new step — append it
+                    updated = [...existing, incomingStep];
+                }
+                return { ...m, steps: updated };
             })),
             onDone: () => {
                 updateMessages(activeId, p => p.map((m, i) => {
                     if (i !== p.length - 1) return m;
-                    return { ...m, isStreaming: false, steps: (m.steps || []).map(s => ({ ...s, status: "done" as const })) };
+                    return { ...m, isStreaming: false, steps: (m.steps ?? []).map(s => ({ ...s, status: "done" as const })) };
                 }));
                 setIsLoading(false);
                 if (pendingCharts.current.length > 0 && pendingRows.current.length > 0) openStudio({ question: pendingQuestion.current, sql: pendingSql.current, rawRows: pendingRows.current, columns: pendingColumns.current, charts: pendingCharts.current });
@@ -641,33 +648,13 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
                                             {msg.sql && !msg.isStreaming && <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-500"><CheckCircle2 className="w-3 h-3" /> Executed</span>}
                                         </div>
 
-                                        {/* Thinking */}
-                                        {msg.steps && msg.steps.length > 0 && (() => {
-                                            const thinking = !!msg.isStreaming; const collapsed = !!collapsedThinking[i]; const last = msg.steps[msg.steps.length - 1];
-                                            return (
-                                                <div className="rounded-xl overflow-hidden border transition-all" style={{ background: thinking ? "rgba(124,111,255,0.04)" : "var(--glass-bg)", borderColor: thinking ? "rgba(124,111,255,0.18)" : "var(--glass-border)" }}>
-                                                    <button className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left group" onClick={() => !thinking && setCollapsedThinking(p => ({ ...p, [i]: !p[i] }))} disabled={thinking}>
-                                                        {thinking ? (
-                                                            <span className="relative flex shrink-0"><span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full opacity-60" style={{ background: "#7C6FFF" }} /><span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ background: "#7C6FFF" }} /></span>
-                                                        ) : <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />}
-                                                        <span className="text-[12px] font-semibold flex-1 truncate" style={{ color: thinking ? "#7C6FFF" : "var(--color-muted-foreground)" }}>{thinking ? last.label : `Analysis complete (${msg.steps.length} steps)`}</span>
-                                                        {!thinking && (collapsed ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/40" /> : <ChevronUp className="w-3.5 h-3.5 text-muted-foreground/40" />)}
-                                                    </button>
-                                                    {!collapsed && (
-                                                        <div className="px-3.5 pb-3 border-t border-border/30">
-                                                            <div className="pt-2.5 space-y-2">
-                                                                {msg.steps.map((step, si) => (
-                                                                    <div key={si} className="flex items-start gap-2.5">
-                                                                        {step.status === "done" ? <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0 text-emerald-500" /> : <svg className="w-3 h-3 mt-0.5 shrink-0 animate-spin text-[#7C6FFF]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                                                                        <span className="text-[11px] font-medium leading-relaxed" style={{ color: step.status === "done" ? "var(--color-muted-foreground)" : "var(--color-foreground)" }}>{step.label}</span>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()}
+                                        {/* Thinking steps timeline */}
+                                        {msg.steps && msg.steps.length > 0 && (
+                                            <ThinkingSteps
+                                                steps={msg.steps as ThinkingStep[]}
+                                                isStreaming={!!msg.isStreaming}
+                                            />
+                                        )}
 
                                         {msg.sql && <SQLDisplay sql={msg.sql} attempts={msg.attempts} />}
 
@@ -681,18 +668,39 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
                                             />
                                         )}
 
-                                        {/* Textual Content */}
-                                        {msg.content && !msg.isStreaming && !msg.sql && !(msg.charts?.length) && (
-                                            msg.error ? (
-                                                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex gap-3 shadow-lg">
-                                                    <div className="shrink-0 w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400"><X className="w-4 h-4" /></div>
-                                                    <div><p className="text-[13px] font-bold text-red-300 mb-1">Execution Error</p><p className="text-[12px] text-red-300/70">{msg.error}</p></div>
+                                        {/* ── Security / Error Display ── */}
+                                        {msg.error && !msg.content && !msg.isStreaming && (
+                                            <div
+                                                className="rounded-xl overflow-hidden shadow-lg animate-fadein"
+                                                style={{
+                                                    background: isDark
+                                                        ? "linear-gradient(135deg, rgba(124,111,255,0.08) 0%, rgba(239,68,68,0.06) 100%)"
+                                                        : "linear-gradient(135deg, rgba(124,111,255,0.06) 0%, rgba(239,68,68,0.04) 100%)",
+                                                    border: "1px solid rgba(124,111,255,0.25)",
+                                                }}
+                                            >
+                                                <div className="flex items-start gap-3 px-5 py-4">
+                                                    <div
+                                                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+                                                        style={{ background: "rgba(124,111,255,0.15)", border: "1px solid rgba(124,111,255,0.30)" }}
+                                                    >
+                                                        <ShieldAlert className="w-5 h-5" style={{ color: "#7C6FFF" }} />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[13px] font-bold text-foreground mb-1.5">Security Shield Activated</p>
+                                                        <p className="text-[13px] leading-relaxed" style={{ color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)" }}>
+                                                            {msg.error}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            ) : (
-                                                <div className="text-[14px] leading-relaxed text-foreground/80 prose prose-neutral dark:prose-invert max-w-none">
-                                                    {msg.role === "assistant" ? <ParsedMessageContent content={msg.content} onSend={(q) => sendMessage(q)} isDark={isDark} /> : <MarkdownRenderer content={msg.content} />}
-                                                </div>
-                                            )
+                                            </div>
+                                        )}
+
+                                        {/* ── Textual Content (no SQL/charts) ── */}
+                                        {msg.content && !msg.isStreaming && !msg.sql && !(msg.charts?.length) && !msg.error && (
+                                            <div className="text-[14px] leading-relaxed text-foreground/80 prose prose-neutral dark:prose-invert max-w-none">
+                                                {msg.role === "assistant" ? <ParsedMessageContent content={msg.content} onSend={(q) => sendMessage(q)} isDark={isDark} /> : <MarkdownRenderer content={msg.content} />}
+                                            </div>
                                         )}
 
                                         {msg.isStreaming && msg.content && !msg.sql && !(msg.charts?.length) && (
@@ -701,9 +709,10 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
                                             </div>
                                         )}
 
+                                        {/* ── AI Insights (Business Summary) ── */}
                                         {msg.content && !msg.isStreaming && (msg.sql || msg.charts?.length) && (
-                                            <div className="text-[14px] leading-relaxed prose prose-neutral dark:prose-invert max-w-none p-5 rounded-xl shadow-sm" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-                                                 <ParsedMessageContent content={msg.content} onSend={(q) => sendMessage(q)} isDark={isDark} />
+                                            <div className="text-[14px] leading-relaxed text-foreground/80 prose prose-neutral dark:prose-invert max-w-none">
+                                                <ParsedMessageContent content={msg.content} onSend={(q) => sendMessage(q)} isDark={isDark} />
                                             </div>
                                         )}
                                         {msg.error && (msg.sql || msg.charts?.length) && (
@@ -719,11 +728,7 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
 
                 {/* Input Area */}
                 <div className="shrink-0 px-6 pb-6 pt-2 flex flex-col items-center gap-3 bg-gradient-to-t from-background via-background to-transparent z-10">
-                    <div className="flex gap-2">
-                        {["Visualize", "Query", "Summarize"].map(label => (
-                            <button key={label} onClick={() => sendMessage(`${label} the data`)} className="px-3 py-1.5 rounded-full text-[11px] font-bold text-muted-foreground transition-all hover:text-foreground hover:-translate-y-0.5 hover:shadow-lg" style={{ background: "var(--glass-bg-hover)", border: "1px solid var(--glass-border)" }}>{label}</button>
-                        ))}
-                    </div>
+
                     <div className="w-full max-w-3xl relative group">
                         <div className="absolute inset-0 rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity blur-2xl pointer-events-none" style={{ background: "rgba(124,111,255,0.15)" }} />
                         <div className="relative flex items-end rounded-2xl p-2.5 shadow-xl transition-all" style={{ background: "var(--input-bg)", backdropFilter: "blur(20px)", border: "1px solid var(--glass-border-strong)", boxShadow: "0 8px 30px rgba(0,0,0,0.1)" }}>

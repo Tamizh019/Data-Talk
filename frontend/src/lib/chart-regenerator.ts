@@ -5,10 +5,29 @@
  */
 import type { VisualizerBlock } from "@/components/ChartRenderer";
 
-export type SupportedType = "bar" | "line" | "area" | "scatter" | "pie" | "donut" | "horizontal_bar" | "stacked_bar" | "radar";
+export type SupportedType = "bar" | "line" | "area" | "scatter" | "pie" | "donut" | "horizontal_bar" | "stacked_bar" | "radar" | "treemap" | "funnel";
 
 // ECharts brand palette
 const PALETTE = ["#7C6FFF", "#00C9B1", "#F59E0B", "#6366F1", "#EC4899", "#10B981", "#3B82F6", "#F97316"];
+
+// ── Label truncation helper — prevents axis label overlap ─────────────────────
+const MAX_LABEL_LEN = 22;
+function truncateLabel(label: string): string {
+    if (!label || label.length <= MAX_LABEL_LEN) return label;
+    return label.slice(0, MAX_LABEL_LEN - 1).trimEnd() + "…";
+}
+
+function smartAxisLabel(categories: string[], isHorizontal = false) {
+    const maxLen = Math.max(...categories.map(c => c.length));
+    const needsRotation = !isHorizontal && (categories.length > 6 || maxLen > 15);
+    return {
+        formatter: (value: string) => truncateLabel(value),
+        rotate: needsRotation ? 25 : 0,
+        fontSize: 11,
+        overflow: "truncate" as const,
+        width: isHorizontal ? 120 : 80,
+    };
+}
 
 // ── Main export: regenerate a chart option from filtered rows ──────────────────
 export function regenerateChartOption(
@@ -28,6 +47,8 @@ export function regenerateChartOption(
         if (chartType === "scatter") return buildScatter(meta, filteredRows);
         if (chartType === "horizontal_bar") return buildHorizontalBar(meta, filteredRows);
         if (chartType === "stacked_bar") return buildStackedBar(meta, filteredRows, "bar");
+        if (chartType === "treemap") return buildTreemap(meta, filteredRows);
+        if (chartType === "funnel") return buildFunnel(meta, filteredRows);
         // Default: bar / line / area share the same structure
         return buildXY(meta, filteredRows, chartType);
     } catch (e) {
@@ -72,7 +93,12 @@ function buildXY(meta: any, rows: Record<string, any>[], type: string) {
 
     const opt: any = {
         _truncated: isTruncated,
-        xAxis: { type: "category", data: categories, axisLabel: { rotate: categories.length > 8 ? 30 : 0 } },
+        xAxis: {
+            type: "category",
+            data: categories,
+            axisLabel: smartAxisLabel(categories),
+            axisTick: { alignWithLabel: true },
+        },
         yAxis: { type: "value" },
         series,
         legend: yCols.length > 1 ? { show: true } : { show: false },
@@ -110,7 +136,11 @@ function buildHorizontalBar(meta: any, rows: Record<string, any>[]) {
 
     return {
         _truncated: isTruncated,
-        yAxis: { type: "category", data: categories },
+        yAxis: {
+            type: "category",
+            data: categories,
+            axisLabel: smartAxisLabel(categories, true),
+        },
         xAxis: { type: "value" },
         series: [{
             type: "bar",
@@ -120,8 +150,16 @@ function buildHorizontalBar(meta: any, rows: Record<string, any>[]) {
             }),
             itemStyle: { color: PALETTE[0] },
         }],
-        grid: { left: 15, right: 30, top: 15, bottom: 20, containLabel: true },
-        tooltip: { trigger: "axis" },
+        grid: { left: 10, right: 30, top: 15, bottom: 20, containLabel: true },
+        tooltip: {
+            trigger: "axis",
+            formatter: (params: any) => {
+                if (!Array.isArray(params)) params = [params];
+                const cat = params[0]?.name ?? "";
+                const val = params[0]?.value ?? "";
+                return `<b>${cat}</b><br/>${val}`;
+            },
+        },
     };
 }
 
@@ -232,6 +270,69 @@ function buildRadar(meta: any, rows: Record<string, any>[]) {
     };
 }
 
+// ── Treemap ───────────────────────────────────────────────────────────────────
+function buildTreemap(meta: any, rows: Record<string, any>[]) {
+    const catCol = meta.category_col || meta.x_col;
+    const valCol = meta.value_col || (meta.y_cols || [])[0];
+
+    const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
+    // NOTE: No per-item itemStyle — ECharts treemap assigns palette colors automatically.
+    // Adding itemStyle per node causes an internal 'push' crash in ECharts' SeriesData.
+    const data = groups.map(g => ({
+        name: g,
+        value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
+    })).filter(d => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    return {
+        color: PALETTE,
+        series: [{
+            type: "treemap",
+            width: "100%",
+            height: "100%",
+            data,
+            leafDepth: 1,
+            roam: false,
+            breadcrumb: { show: false },
+            label: { show: true, formatter: "{b}\n{c}", fontSize: 12, fontWeight: "bold", color: "#fff" },
+            upperLabel: { show: false },
+            itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", gapWidth: 2 },
+            emphasis: { label: { fontSize: 14 }, itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,0.3)" } },
+            levels: [
+                { itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", gapWidth: 2 } },
+            ],
+        }],
+        tooltip: { trigger: "item", formatter: (info: any) => `<b>${info.name}</b>: ${info.value}` },
+    };
+}
+
+// ── Funnel ────────────────────────────────────────────────────────────────────
+function buildFunnel(meta: any, rows: Record<string, any>[]) {
+    const catCol = meta.category_col || meta.x_col;
+    const valCol = meta.value_col || (meta.y_cols || [])[0];
+
+    const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
+    const data = groups.map((g, i) => ({
+        name: g,
+        value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
+        itemStyle: { color: PALETTE[i % PALETTE.length] },
+    })).filter(d => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    return {
+        series: [{
+            type: "funnel",
+            width: "70%",
+            left: "15%",
+            data,
+            label: { show: true, position: "inside", formatter: "{b}\n{c}", fontSize: 12, fontWeight: "bold", color: "#fff" },
+            itemStyle: { borderWidth: 1, borderColor: "#fff" },
+            emphasis: { label: { fontSize: 14 } },
+        }],
+        tooltip: { trigger: "item", formatter: "{a} <br/>{b}: {c}" },
+    };
+}
+
 // ── Scatter ───────────────────────────────────────────────────────────────────
 function buildScatter(meta: any, rows: Record<string, any>[]) {
     const xCol = meta.x_col;
@@ -255,8 +356,8 @@ function buildScatter(meta: any, rows: Record<string, any>[]) {
     }
 
     return {
-        xAxis: { type: "value", name: xCol },
-        yAxis: { type: "value", name: yCol },
+        xAxis: { type: "value", name: truncateLabel(xCol) },
+        yAxis: { type: "value", name: truncateLabel(yCol) },
         series: [{
             type: "scatter",
             data: rows.map(r => [Number(r[xCol]), Number(r[yCol])]),
@@ -280,17 +381,19 @@ function aggregate(rows: Record<string, any>[], col: string, agg: string): numbe
 }
 
 // ── Chart type groups (for the switcher) ─────────────────────────────────────
-export const AXIS_TYPES: SupportedType[] = ["bar", "line", "area", "horizontal_bar", "scatter"];
+export const AXIS_TYPES: SupportedType[] = ["bar", "line", "area", "horizontal_bar", "scatter", "stacked_bar", "radar"];
 export const PIE_TYPES: SupportedType[] = ["pie", "donut"];
-export const ALL_TYPES: SupportedType[] = [...AXIS_TYPES, ...PIE_TYPES, "stacked_bar", "radar"];
+export const HIERARCHY_TYPES: SupportedType[] = ["treemap", "funnel"];
+export const ALL_TYPES: SupportedType[] = [...AXIS_TYPES, ...PIE_TYPES, ...HIERARCHY_TYPES];
 
 export function getCompatibleTypes(currentType: string): SupportedType[] {
     if (PIE_TYPES.includes(currentType as SupportedType)) return PIE_TYPES;
+    if (HIERARCHY_TYPES.includes(currentType as SupportedType)) return HIERARCHY_TYPES;
     return AXIS_TYPES;
 }
 
 export const TYPE_ICONS: Record<string, string> = {
     bar: "bar2", line: "line", area: "area", scatter: "scatter",
     pie: "pie", donut: "donut", horizontal_bar: "hbar",
-    stacked_bar: "stack", radar: "radar",
+    stacked_bar: "stack", radar: "radar", treemap: "treemap", funnel: "funnel",
 };

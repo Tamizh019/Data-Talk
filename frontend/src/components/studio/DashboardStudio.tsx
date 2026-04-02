@@ -254,52 +254,62 @@ export default function DashboardStudio({ isDark }: DashboardStudioProps) {
                         {/* Range sliders */}
                         {meta
                             .filter(m => m.type === "numeric")
-                            .map(m => {
+                            .map((m, i) => {
                                 const min = m.min ?? 0;
                                 const max = m.max ?? 100;
                                 const current = filters[m.name] as RangeFilter | undefined;
                                 const currentMin = current?.currentMin ?? min;
                                 const currentMax = current?.currentMax ?? max;
+                                const color = i % 2 === 0 ? "#7C6FFF" : "#00C9B1";
+                                const themeStyle = { "--thumb-color": color } as React.CSSProperties;
+                                const isActive = currentMin > min || currentMax < max;
+
                                 return (
-                                    <div key={m.name} className="flex flex-col gap-1.5 shrink-0" style={{ width: "140px" }}>
+                                    <div key={m.name} className="flex flex-col gap-2 shrink-0 pt-1" style={{ width: "160px" }}>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                                 {m.name}
                                             </span>
-                                            <span className="text-[9px] text-muted-foreground/60 font-mono">
-                                                {currentMin.toFixed(1)}–{currentMax.toFixed(1)}
+                                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                                                style={isActive ? { background: `${color}20`, color: color } : { background: 'var(--glass-bg-hover)', color: 'var(--color-muted-foreground)' }}>
+                                                {currentMin.toFixed(min % 1 !== 0 ? 1 : 0)} – {currentMax.toFixed(min % 1 !== 0 ? 1 : 0)}
                                             </span>
                                         </div>
-                                        <div className="flex flex-col gap-1">
+                                        
+                                        {/* Dual Slider */}
+                                        <div className="relative h-6 w-full flex items-center mb-1">
+                                            <div className="absolute w-full h-1.5 bg-muted-foreground/20 rounded-full top-[10px]" />
+                                            <div
+                                                className="absolute h-1.5 rounded-full top-[10px]"
+                                                style={{
+                                                    background: color,
+                                                    left: `${((currentMin - min) / (max - min)) * 100}%`,
+                                                    right: `${100 - ((currentMax - min) / (max - min)) * 100}%`
+                                                }}
+                                            />
                                             <input
                                                 type="range" min={min} max={max} step={(max - min) / 100}
                                                 value={currentMin}
                                                 onChange={e => {
-                                                    const v = Math.min(Number(e.target.value), currentMax);
+                                                    const v = Math.min(Number(e.target.value), currentMax - ((max-min)/100));
                                                     if (v === min && currentMax === max) setFilter(m.name, null);
                                                     else setFilter(m.name, { type: "range", min, max, currentMin: v, currentMax });
                                                 }}
-                                                className="w-full h-1 appearance-none rounded-full cursor-pointer"
-                                                style={{ accentColor: "#7C6FFF" }}
+                                                className="dual-range z-10"
+                                                style={themeStyle}
                                             />
                                             <input
                                                 type="range" min={min} max={max} step={(max - min) / 100}
                                                 value={currentMax}
                                                 onChange={e => {
-                                                    const v = Math.max(Number(e.target.value), currentMin);
+                                                    const v = Math.max(Number(e.target.value), currentMin + ((max-min)/100));
                                                     if (currentMin === min && v === max) setFilter(m.name, null);
                                                     else setFilter(m.name, { type: "range", min, max, currentMin, currentMax: v });
                                                 }}
-                                                className="w-full h-1 appearance-none rounded-full cursor-pointer"
-                                                style={{ accentColor: "#00C9B1" }}
+                                                className="dual-range z-[11]"
+                                                style={themeStyle}
                                             />
                                         </div>
-                                        {current && (
-                                            <button onClick={() => setFilter(m.name, null)}
-                                                className="text-[9px] text-muted-foreground/50 hover:text-red-400 transition-colors flex items-center gap-0.5 self-start">
-                                                <X className="w-2 h-2" /> Reset
-                                            </button>
-                                        )}
                                     </div>
                                 );
                             })}

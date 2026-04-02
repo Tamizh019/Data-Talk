@@ -131,60 +131,61 @@ textarea:disabled {
    Dark Mode (.dark)
 ───────────────────────────────────────── */
 .dark {
-  --background:           #07070D;
-  --foreground:           #E8EDF5;
-  --card:                 #0D0D18;
-  --card-foreground:      #E8EDF5;
-  --popover:              #0D0D18;
-  --popover-foreground:   #E8EDF5;
+  /* ── Shadcn Design Tokens ── */
+  --background:           #0A0A0F;
+  --foreground:           #EAEDF3;
+  --card:                 #111118;
+  --card-foreground:      #EAEDF3;
+  --popover:              #111118;
+  --popover-foreground:   #EAEDF3;
   --primary:              #7C6FFF;
   --primary-foreground:   #FFFFFF;
-  --secondary:            #141426;
-  --secondary-foreground: #E8EDF5;
-  --muted:                #141426;
-  --muted-foreground:     #6B7591;
-  --accent:               #1A1A2E;
-  --accent-foreground:    #E8EDF5;
+  --secondary:            #16161F;
+  --secondary-foreground: #EAEDF3;
+  --muted:                #16161F;
+  --muted-foreground:     #7A839B;
+  --accent:               #1C1C2A;
+  --accent-foreground:    #EAEDF3;
   --destructive:          #F87171;
-  --border:               rgba(255, 255, 255, 0.07);
-  --input:                rgba(255, 255, 255, 0.10);
+  --border:               rgba(255, 255, 255, 0.08);
+  --input:                rgba(255, 255, 255, 0.08);
   --ring:                 #7C6FFF;
-  --sidebar:              #0D0D18;
-  --sidebar-foreground:   #E8EDF5;
+  --sidebar:              #0E0E15;
+  --sidebar-foreground:   #EAEDF3;
   --sidebar-primary:      #7C6FFF;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent:       #141426;
-  --sidebar-accent-foreground: #E8EDF5;
+  --sidebar-accent:       #18182A;
+  --sidebar-accent-foreground: #EAEDF3;
   --sidebar-border:       rgba(255, 255, 255, 0.06);
   --sidebar-ring:         #7C6FFF;
   --chart-1:              #7C6FFF;
   --chart-2:              #00C9B1;
   --chart-3:              #F59E0B;
-  --chart-4:              #6366F1;
-  --chart-5:              #EC4899;
+  --chart-4:              #818CF8;
+  --chart-5:              #F472B6;
 
   /* ── App-specific glass/surface variables ── */
-  --page-bg:              #07070D;
-  --glass-bg:             rgba(13, 13, 22, 0.88);
-  --glass-bg-hover:       rgba(255, 255, 255, 0.04);
-  --glass-border:         rgba(255, 255, 255, 0.06);
-  --glass-border-strong:  rgba(255, 255, 255, 0.10);
-  --bloom-color:          rgba(26, 16, 64, 0.55);
-  --dot-color:            rgba(255, 255, 255, 0.04);
-  --placeholder-color:    rgba(255, 255, 255, 0.22);
-  --input-bg:             rgba(13, 13, 22, 0.75);
-  --header-border:        rgba(255, 255, 255, 0.05);
-  --shadow-color:         rgba(0, 0, 0, 0.45);
-  --shadow-md:            0 4px 16px rgba(0, 0, 0, 0.40);
-  --shadow-xl:            0 10px 40px rgba(0, 0, 0, 0.55);
-  --table-bg:             #0F0F1A;
-  --table-header-bg:      #1A1A28;
-  --table-row-bg:         #0F0F1A;
-  --table-row-hover:      rgba(255, 255, 255, 0.04);
+  --page-bg:              #0A0A0F;
+  --glass-bg:             rgba(14, 14, 21, 0.92);
+  --glass-bg-hover:       rgba(255, 255, 255, 0.035);
+  --glass-border:         rgba(255, 255, 255, 0.08);
+  --glass-border-strong:  rgba(255, 255, 255, 0.13);
+  --bloom-color:          rgba(124, 111, 255, 0.06);
+  --dot-color:            rgba(255, 255, 255, 0.025);
+  --placeholder-color:    rgba(255, 255, 255, 0.28);
+  --input-bg:             rgba(17, 17, 24, 0.85);
+  --header-border:        rgba(255, 255, 255, 0.06);
+  --shadow-color:         rgba(0, 0, 0, 0.50);
+  --shadow-md:            0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-xl:            0 10px 40px rgba(0, 0, 0, 0.60);
+  --table-bg:             #111118;
+  --table-header-bg:      #1A1A25;
+  --table-row-bg:         #111118;
+  --table-row-hover:      rgba(124, 111, 255, 0.04);
   --table-border:         rgba(255, 255, 255, 0.07);
-  --table-text:           #CBD5E1;
-  --table-text-muted:     #64748B;
-  --code-bg:              #0D0D1A;
+  --table-text:           #D1D5E0;
+  --table-text-muted:     #6B7280;
+  --code-bg:              #0D0D16;
 }
 /*
   ---break---
@@ -236,6 +237,7 @@ textarea:disabled {
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
   body {
     @apply bg-background text-foreground;
@@ -245,4 +247,55 @@ textarea:disabled {
   html {
     @apply font-sans;
   }
+}
+
+/* ─────────────────────────────────────────
+   Dual Range Slider
+───────────────────────────────────────── */
+.dual-range {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  pointer-events: none;
+  margin: 0;
+  outline: none;
+}
+.dual-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background-color: var(--thumb-color, #7C6FFF);
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  pointer-events: auto;
+  cursor: grab;
+  position: relative;
+  z-index: 10;
+}
+.dual-range::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+.dual-range::-webkit-slider-thumb:active {
+  cursor: grabbing;
+}
+.dual-range::-moz-range-thumb {
+  height: 14px;
+  width: 14px;
+  border-radius: 50%;
+  background-color: var(--thumb-color, #7C6FFF);
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  pointer-events: auto;
+  cursor: grab;
+  position: relative;
+  z-index: 10;
+}
+.dual-range::-moz-range-thumb:active {
+  cursor: grabbing;
 }

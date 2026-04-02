@@ -29,7 +29,13 @@ export default function DataTable({ config }: DataTableProps) {
             let isNumeric = true;
             let max = 0;
             for (let rIdx = 0; rIdx < config.data.length; rIdx++) {
-                const val = config.data[rIdx][cIdx];
+                const rawRow = config.data[rIdx] as any;
+                let val = rawRow[cIdx];
+                if (!Array.isArray(rawRow) && typeof rawRow === "object") {
+                    const colName = config.columns[cIdx];
+                    val = colName in rawRow ? rawRow[colName] : Object.values(rawRow)[cIdx];
+                }
+                
                 if (val === null || val === undefined || val === "") continue;
                 const num = Number(val);
                 if (isNaN(num)) { isNumeric = false; break; }
@@ -96,7 +102,12 @@ export default function DataTable({ config }: DataTableProps) {
 
                     {/* ── Body ── */}
                     <tbody>
-                        {displayData.map((row, rowIdx) => {
+                        {displayData.map((rawRow, rowIdx) => {
+                            // Safe fallback in case the backend sends objects instead of arrays
+                            const row = Array.isArray(rawRow) ? rawRow : config.columns.map((c, i) => {
+                                return c in (rawRow as any) ? (rawRow as any)[c] : Object.values(rawRow)[i];
+                            });
+
                             const isExpanded = expandedRows.has(rowIdx);
                             return (
                                 <React.Fragment key={rowIdx}>

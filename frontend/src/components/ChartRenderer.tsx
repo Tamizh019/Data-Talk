@@ -3,7 +3,12 @@
 import { useMemo, useCallback } from "react";
 import ReactECharts from "echarts-for-react";
 import * as echarts from "echarts";
+import { Layers } from "lucide-react";
 import DataTable from "./DataTable";
+
+// ── Label truncation helper ──────────────────────────────────────────────────
+const MAX_LABEL = 22;
+const truncate = (s: string) => (!s || s.length <= MAX_LABEL ? s : s.slice(0, MAX_LABEL - 1).trimEnd() + "…");
 
 // ── Dark theme (used in dark mode) ──────────────────────────────────────────
 echarts.registerTheme("datatalk_dark", {
@@ -85,7 +90,6 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
     const echartsOption = useMemo(() => {
         if (library !== "echarts") return null;
         
-        // Recursively strip exact color properties so the Theme can manage them
         const stripThemeOverrides = (obj: any): any => {
             if (Array.isArray(obj)) return obj.map(stripThemeOverrides);
             if (obj !== null && typeof obj === "object") {
@@ -108,18 +112,25 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
         };
 
         const baseOption = stripThemeOverrides(config || block);
-        const isPie = chart_type === "pie" || chart_type === "donut";
-        const isHBar = chart_type === "horizontal_bar";
-        const isArea = chart_type === "area";
-        const isLine = chart_type === "line";
-        const isScatter = chart_type === "scatter";
 
-        // ── Tableau-grade series enhancer ───────────────────────────────────
+        // ── Classify chart type ──────────────────────────────────────────
+        const isPie      = chart_type === "pie" || chart_type === "donut";
+        const isHBar     = chart_type === "horizontal_bar";
+        const isArea     = chart_type === "area";
+        const isScatter  = chart_type === "scatter";
+        const isRadar    = chart_type === "radar";
+        const isTreemap  = chart_type === "treemap";
+        const isFunnel   = chart_type === "funnel";
+        // Types that need axis-mode tooltip and grid
+        const isAxisChart = !isPie && !isScatter && !isRadar && !isTreemap && !isFunnel;
+        // Types that need item-mode tooltip (no axis)
+        const isItemTooltip = isPie || isScatter || isRadar || isTreemap || isFunnel;
+
+        // ── Series enhancer ──────────────────────────────────────────────
         const enhanceSeries = (series: any[]) => series.map((s: any) => {
             const enhanced = { ...s };
 
             if (s.type === "bar") {
-                // Gradient fill + rounded tops
                 if (!enhanced.itemStyle?.color?.type) {
                     enhanced.itemStyle = {
                         borderRadius: isHBar ? [0, 6, 6, 0] : [6, 6, 0, 0],
@@ -129,14 +140,8 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
                         ...enhanced.itemStyle,
                     };
                 }
-                // Emphasis glow
-                if (!enhanced.emphasis) {
-                    enhanced.emphasis = { itemStyle: { color: "#00C9B1", shadowBlur: 12, shadowColor: "rgba(0,201,177,0.4)" } };
-                }
-                // Labels
-                if (!enhanced.label) {
-                    enhanced.label = { show: true, position: isHBar ? "right" : "top", fontSize: 11, fontWeight: "bold" };
-                }
+                if (!enhanced.emphasis) enhanced.emphasis = { itemStyle: { color: "#00C9B1", shadowBlur: 12, shadowColor: "rgba(0,201,177,0.4)" } };
+                if (!enhanced.label)    enhanced.label    = { show: true, position: isHBar ? "right" : "top", fontSize: 11, fontWeight: "bold" };
                 if (!enhanced.barMaxWidth) enhanced.barMaxWidth = isHBar ? 40 : 48;
             }
 
@@ -155,16 +160,35 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
 
             if (isPie) {
                 enhanced.radius = chart_type === "donut"
-                    ? (enhanced.radius ?? ["42%", "70%"])
-                    : (enhanced.radius ?? "65%");
-                enhanced.label = enhanced.label ?? { show: true, formatter: "{b}\n{d}%", fontSize: 11 };
-                enhanced.labelLine = enhanced.labelLine ?? { length: 12, length2: 8 };
-                enhanced.emphasis = enhanced.emphasis ?? { itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.3)" }, scaleSize: 8 };
+                    ? (enhanced.radius ?? ["40%", "60%"])
+                    : (enhanced.radius ?? "50%");
+                enhanced.center     = enhanced.center ?? ["40%", "50%"];
+                enhanced.itemStyle  = { ...enhanced.itemStyle, borderRadius: 4, borderColor: "transparent", borderWidth: 2 };
+                enhanced.label      = enhanced.label ?? { show: true, formatter: (p: any) => `${truncate(p.name)}\n${p.percent}%`, fontSize: 10 };
+                enhanced.labelLine  = enhanced.labelLine ?? { length: 8, length2: 10, smooth: true };
+                enhanced.emphasis   = enhanced.emphasis ?? { itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.3)" }, scaleSize: 6 };
             }
 
             if (isScatter) {
                 enhanced.symbolSize = enhanced.symbolSize ?? 10;
-                enhanced.emphasis = enhanced.emphasis ?? { symbolSize: 16, itemStyle: { shadowBlur: 12, shadowColor: "rgba(124,111,255,0.5)" } };
+                enhanced.emphasis   = enhanced.emphasis ?? { symbolSize: 16, itemStyle: { shadowBlur: 12, shadowColor: "rgba(124,111,255,0.5)" } };
+            }
+
+            if (isTreemap) {
+                enhanced.leafDepth  = enhanced.leafDepth  ?? 1;
+                enhanced.breadcrumb = enhanced.breadcrumb ?? { show: false };
+                enhanced.roam       = enhanced.roam       ?? false;
+                enhanced.label      = enhanced.label      ?? { show: true, fontSize: 12, fontWeight: "bold", color: "#fff" };
+                enhanced.upperLabel = enhanced.upperLabel ?? { show: false };
+                // itemStyle at series level only (NOT per data node — that causes ECharts 'push' crash)
+                if (!enhanced.itemStyle) enhanced.itemStyle = { borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", gapWidth: 2 };
+                enhanced.emphasis   = enhanced.emphasis   ?? { label: { fontSize: 14 }, itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,0.3)" } };
+            }
+
+            if (isFunnel) {
+                enhanced.label    = enhanced.label    ?? { show: true, position: "inside", fontSize: 12, fontWeight: "bold", color: "#fff" };
+                enhanced.itemStyle = enhanced.itemStyle ?? { borderWidth: 1, borderColor: "#fff" };
+                enhanced.emphasis  = enhanced.emphasis  ?? { label: { fontSize: 14 } };
             }
 
             return enhanced;
@@ -174,27 +198,90 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
             ? enhanceSeries(baseOption.series)
             : baseOption.series;
 
+        // ── Smart axis label truncation ──────────────────────────────────
+        const patchAxis = (axis: any, isCategory: boolean, isHoriz = false) => {
+            if (!axis || !isCategory) return axis;
+            const patched = { ...axis };
+            const catCount = Array.isArray(patched.data) ? patched.data.length : 0;
+            const maxLen   = Array.isArray(patched.data) ? Math.max(...patched.data.map((d: any) => String(d).length)) : 0;
+            patched.axisLabel = {
+                ...patched.axisLabel,
+                formatter: (v: string) => truncate(v),
+                rotate: !isHoriz && (catCount > 6 || maxLen > 15) ? 25 : 0,
+                fontSize: 11,
+                overflow: "truncate",
+                width: isHoriz ? 120 : 80,
+            };
+            return patched;
+        };
+
+        const xAxis = baseOption.xAxis ? patchAxis(baseOption.xAxis, baseOption.xAxis?.type === "category", false) : baseOption.xAxis;
+        const yAxis = baseOption.yAxis ? patchAxis(baseOption.yAxis, baseOption.yAxis?.type === "category", true)  : baseOption.yAxis;
+
+        // ── Tooltip — per type ───────────────────────────────────────────
+        const tooltipOverride = isItemTooltip
+            ? {
+                trigger: "item",
+                ...(isPie ? { formatter: "{b}: <b>{c}</b> ({d}%)" } : {}),
+                ...(typeof baseOption.tooltip === "object" ? baseOption.tooltip : {}),
+              }
+            : {
+                trigger: "axis",
+                axisPointer: { type: "shadow", shadowStyle: { color: "rgba(124,111,255,0.06)" } },
+                ...(typeof baseOption.tooltip === "object" ? baseOption.tooltip : {}),
+              };
+
+        // ── Legend ───────────────────────────────────────────────────────
+        const legendOverride = {
+            type: "scroll",
+            orient: isPie ? "vertical" : "horizontal",
+            right: isPie ? 5 : "auto",
+            top: isPie ? 20 : "auto",
+            bottom: !isPie ? 0 : "auto",
+            formatter: (name: string) => truncate(name),
+            textStyle: { width: 100, overflow: "truncate" as const },
+            ...(typeof baseOption.legend === "object" ? baseOption.legend : {}),
+        };
+
+        // ── Grid — only for axis-based charts ───────────────────────────
+        const gridOverride = isAxisChart ? {
+            left: "5%", right: "5%", top: "18%",
+            bottom: isHBar ? "8%" : "12%",
+            containLabel: true,
+            ...(typeof baseOption.grid === "object" ? baseOption.grid : {}),
+        } : baseOption.grid;
+
         return {
             ...baseOption,
+            xAxis,
+            yAxis,
             series: enhancedSeries,
             backgroundColor: "transparent",
             animation: true,
             animationDuration: 900,
             animationEasing: "cubicOut",
             animationDurationUpdate: 500,
-            tooltip: {
-                trigger: isPie ? "item" : "axis",
-                axisPointer: isPie ? undefined : { type: "shadow", shadowStyle: { color: "rgba(124,111,255,0.06)" } },
-                formatter: isPie ? "{b}: <b>{c}</b> ({d}%)" : undefined,
-                ...(typeof baseOption.tooltip === "object" ? baseOption.tooltip : {}),
-            },
-            grid: isPie || isScatter ? baseOption.grid : {
-                left: "5%", right: "5%", top: "18%", bottom: "8%", containLabel: true,
-                ...(typeof baseOption.grid === "object" ? baseOption.grid : {}),
-            },
+            legend: legendOverride,
+            tooltip: tooltipOverride,
+            grid: gridOverride,
         };
     }, [block, library, chart_type, config]);
 
+    // Check if the resulting chart data is completely empty or all zeroes
+    const isEmptyData = useMemo(() => {
+        if (library === "table" || library === "kpi" || !echartsOption || !echartsOption.series) return false;
+        const seriesArr = Array.isArray(echartsOption.series) ? echartsOption.series : [echartsOption.series];
+        if (seriesArr.length === 0) return true;
+        
+        return seriesArr.every((s: any) => {
+            if (!Array.isArray(s.data) || s.data.length === 0) return true;
+            return s.data.every((d: any) => {
+                const val = typeof d === "object" && d !== null ? d.value : d;
+                if (Array.isArray(val)) return val.length === 0 || val.every(v => v === 0);
+                return val === 0 || val === null || val === undefined || val === "";
+            });
+        });
+    }, [echartsOption, library]);
 
     const onChartClick = useCallback((params: any) => {
         window.dispatchEvent(new CustomEvent("chart-drilldown", {
@@ -260,8 +347,21 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
             </div>
 
             {/* ── Content ── */}
-            <div className={`p-2 ${isTable ? "max-h-[500px] overflow-y-auto" : ""}`}>
-                {library === "echarts" && echartsOption && (
+            <div className={`p-2 relative ${isTable ? "max-h-[500px] overflow-y-auto" : ""}`}>
+                {/* Empty State Overlay */}
+                {library === "echarts" && isEmptyData && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 z-10 bg-[var(--glass-bg)]/80 backdrop-blur-sm h-[280px]">
+                        <div className="w-10 h-10 mb-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-hover)] flex items-center justify-center text-muted-foreground/60">
+                            <Layers className="w-5 h-5" />
+                        </div>
+                        <p className="text-sm font-medium text-foreground">No data available</p>
+                        <p className="text-[11px] text-muted-foreground mt-1 max-w-[80%]">
+                            This metric currently has no data.
+                        </p>
+                    </div>
+                )}
+
+                {library === "echarts" && echartsOption && !isEmptyData && (
                     <ReactECharts
                         option={echartsOption}
                         theme={echartsTheme}

@@ -1,7 +1,14 @@
 """
-Report Refiner Agent (Phase 9)
-Acts as the final safeguard before sending the text payload to the frontend.
-Reviews the Analyst's output to ensure it is grammatically correct, matches the user's intent, and contains no raw JSON/markdown glitches.
+Response Formatter Agent — Final Intelligence Layer
+Compares the user's original question with the analyst's raw findings
+and produces a beautifully formatted, title-first, question-answering response.
+
+This is the ONLY layer the user sees in the UI.
+It must:
+  - Generate a clear, descriptive title that directly names what was found
+  - Format the answer to actually solve what the user asked
+  - Match the structure to the type of question (comparison, ranking, total, trend, etc.)
+  - Never use generic headers like "Key Insight" or "Key Findings" unless relevant
 """
 import logging
 from groq import AsyncGroq
@@ -12,39 +19,74 @@ settings = get_settings()
 
 client = AsyncGroq(api_key=settings.groq_api_key)
 
-REFINER_SYSTEM = """You are a meticulous Data Publishing Editor.
-Your job: Review the Business Analyst's explanation of data before it is sent to the CEO/User.
+FORMATTER_SYSTEM = """You are a world-class data communication expert.
 
-Rules:
-1. Ensure the response cleanly, directly answers the User's Request.
-2. Remove any robotic framing (e.g. "Here is the data," "As an AI").
-3. Ensure no raw JSON artifacts, raw SQL, or broken markdown fences leaked in.
-4. Keep the output extremely conversational, crisp, and professional.
-5. Do NOT change the facts or the numbers from the Original Explanation. Only fix the tone/formatting.
-6. The Original Explanation will contain 3 suggested Follow-up Questions at the end. You MUST preserve these questions exactly as they are without omitting them.
+Your job: take a user's question + raw data analysis, then produce a PERFECTLY FORMATTED response
+that directly and clearly answers what they asked.
 
-If the Original Explanation is fine, just rewrite it slightly smoother or leave it as is.
-DO NOT output anything other than the final beautiful text response.
+## CRITICAL RULES
+
+1. **Title First** — Always start with a `##` markdown title that captures THE KEY FINDING, not the question.
+   - Bad title: "Analysis of Student CGPA"
+   - Good title: "Average CGPA is 7.4 — Engineering leads at 8.1"
+   - Good title: "Sales grew 23% in Q4 — Electronics drove the increase"
+
+2. **Match format to the question type:**
+   - Ranking/Top N → use a numbered list with values
+   - Single aggregate (avg, total, count) → bold the number upfront, then explain
+   - Comparison → use a small table or side-by-side bullets
+   - Trend/Time series → describe direction + magnitude then bullets
+   - Overview/Summary → short paragraph + key bullets
+   - Yes/No question → answer directly first, then support with data
+
+3. **Use real numbers** — always include the specific figures from the data.
+
+4. **End with follow-ups** — exactly 3 concise follow-up questions formatted like:
+   ---
+   **Explore further:**
+   - [question 1]
+   - [question 2]
+   - [question 3]
+
+5. **Never use these as headers:** "Key Insight", "Key Findings", "Recommendation" — unless the question specifically asks for recommendations.
+
+6. **Tone:** Direct, confident, data-driven. Like a brilliant analyst explaining to a smart colleague — not a corporate report.
+
+7. **Length:** Concise. Do NOT pad. If the answer is simple, keep it short. If complex, use structure.
+
+8. Remove any robotic language. No "As an AI", "Here is the analysis", "Based on the data provided".
+
+OUTPUT: Clean markdown only. No JSON, no code blocks, no preamble.
 """
 
-async def refine_final_report(user_query: str, analyst_explanation: str) -> str:
-    prompt = f"### User Request\n{user_query}\n\n### Original Analyst Explanation\n{analyst_explanation}\n\n### Polished Final Version:\n"
-    
+
+async def format_response(user_query: str, raw_analysis: str) -> str:
+    """
+    Final intelligence layer: compares the user question vs raw analysis
+    and produces a contextually appropriate, beautifully formatted response.
+    """
+    prompt = (
+        f"### User's Original Question\n{user_query}\n\n"
+        f"### Raw Analyst Findings\n{raw_analysis}\n\n"
+        f"### Your Task\n"
+        f"Produce the final beautifully formatted response that directly answers the user's question. "
+        f"Start with a ## title capturing the key finding, then format the answer to match the question type."
+    )
+
     try:
         completion = await client.chat.completions.create(
             model=settings.refiner_model,
             messages=[
-                {"role": "system", "content": REFINER_SYSTEM},
+                {"role": "system", "content": FORMATTER_SYSTEM},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.1,
-            max_tokens=500
+            temperature=0.2,
+            max_tokens=700
         )
-        refined = completion.choices[0].message.content.strip()
-        logger.info("[RefinerAgent] Successfully reviewed and refined report.")
-        return refined
-        
+        formatted = completion.choices[0].message.content.strip()
+        logger.info("[FormatterAgent] Successfully formatted response.")
+        return formatted
+
     except Exception as e:
-        logger.warning(f"[RefinerAgent] Failed during refinement: {e}")
-        # Soft-fail: on error, just return the unrefined explanation
-        return analyst_explanation
+        logger.warning(f"[FormatterAgent] Failed: {e}. Returning raw analysis.")
+        return raw_analysis

@@ -6,6 +6,24 @@ export interface EChartsConfig {
     [key: string]: unknown;
 }
 
+// Step types emitted by the backend orchestrator for the thinking timeline UI
+export type ThinkingStepType =
+    | "routing"
+    | "query_generation"
+    | "tool_call"
+    | "analysis"
+    | "synthesis"
+    | "reflection";
+
+export interface ThinkingStep {
+    id: string;
+    type: ThinkingStepType;
+    label: string;
+    detail?: string;
+    status: "running" | "done" | "error";
+    duration_ms?: number;
+}
+
 export interface ChatMessage {
     role: "user" | "assistant";
     content?: string;
@@ -20,7 +38,7 @@ export interface ChatMessage {
     isStreaming?: boolean;
     error?: string;
     createdAt?: number;
-    steps?: { label: string; status: "pending" | "done" }[];
+    steps?: ThinkingStep[];
 }
 
 interface StreamCallbacks {
@@ -32,7 +50,10 @@ interface StreamCallbacks {
     onCached?: (data: object) => void;
     onError?: (message: string) => void;
     onDone?: () => void;
+    /** @deprecated kept for any legacy callers — prefer onThinkingStep */
     onStep?: (label: string) => void;
+    /** Fired for each structured thinking_step event from the backend */
+    onThinkingStep?: (step: ThinkingStep) => void;
 }
 
 export async function streamChat(
@@ -79,28 +100,44 @@ export async function streamChat(
 
                     const event = JSON.parse(eventStr);
                     switch (event.event) {
+                        // ── Structured per-step thinking events ─────────────────
+                        case "thinking_step": {
+                            // chat.py spreads data flat: {"event":"thinking_step", "id":..., ...}
+                            // IMPORTANT: done events only carry {id, status, duration_ms} — the rest are
+                            // undefined here. We must strip undefined keys so the merge in ChatWindow
+                            // does NOT overwrite label/type/detail with undefined.
+                            const raw = {
+                                id: event.id,
+                                type: event.type,
+                                label: event.label,
+                                detail: event.detail,
+                                status: event.status,
+                                duration_ms: event.duration_ms,
+                            };
+                            const step = Object.fromEntries(
+                                Object.entries(raw).filter(([, v]) => v !== undefined)
+                            ) as ThinkingStep;
+                            callbacks.onThinkingStep?.(step);
+                            if (step.status === "running" && step.label) callbacks.onStep?.(step.label);
+                            break;
+                        }
+                        // ── Data payload events (unchanged) ─────────────────────
                         case "intent":
-                            callbacks.onStep?.(`Routing intent: ${event.intent}`);
                             callbacks.onIntent?.(event.intent);
                             break;
                         case "sql_generated":
-                            callbacks.onStep?.("Executing optimized SQL Query");
                             callbacks.onSql?.(event.sql);
                             break;
                         case "query_result":
-                            callbacks.onStep?.("Analyzing Data Results");
                             callbacks.onResult?.(event.rows, event.columns, event.row_count, event.attempts);
                             break;
                         case "visualization":
-                            callbacks.onStep?.("Generating Dashboard Visualizations");
                             callbacks.onVisualization?.(event.charts);
                             break;
                         case "explanation":
-                            callbacks.onStep?.("Writing Business Summary");
                             callbacks.onExplanation?.(event.text);
                             break;
                         case "cached_result":
-                            callbacks.onStep?.("Loaded from Cache");
                             callbacks.onCached?.(event);
                             break;
                         case "error":

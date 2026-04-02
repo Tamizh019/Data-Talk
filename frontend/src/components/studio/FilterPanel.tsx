@@ -43,7 +43,7 @@ export default function FilterPanel() {
                     .map(m => <MultiSelectControl key={m.name} meta={m} filters={filters} setFilter={setFilter} />)}
 
                 {meta.filter(m => m.type === "numeric")
-                    .map(m => <RangeControl key={m.name} meta={m} filters={filters} setFilter={setFilter} />)}
+                    .map((m, i) => <RangeControl key={m.name} meta={m} filters={filters} setFilter={setFilter} color={i % 2 === 0 ? "#7C6FFF" : "#00C9B1"} />)}
             </div>
         </div>
     );
@@ -101,10 +101,12 @@ function MultiSelectControl({ meta, filters, setFilter }: {
 }
 
 // ── Range Slider Filter ───────────────────────────────────────────────────────
-function RangeControl({ meta, filters, setFilter }: {
+// ── Range Slider Filter ───────────────────────────────────────────────────────
+function RangeControl({ meta, filters, setFilter, color }: {
     meta: ColumnMeta;
     filters: Record<string, FilterValue>;
     setFilter: (col: string, val: FilterValue | null) => void;
+    color: string;
 }) {
     const min = meta.min ?? 0;
     const max = meta.max ?? 100;
@@ -120,36 +122,56 @@ function RangeControl({ meta, filters, setFilter }: {
         }
     }, [min, max, meta.name, setFilter]);
 
+    // Used for the dual-range thumb rendering via CSS variable
+    const themeStyle = { "--thumb-color": color } as React.CSSProperties;
+
+    // Is active
+    const isActive = currentMin > min || currentMax < max;
+
     return (
-        <div className="space-y-2">
+        <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{meta.name}</span>
-                <span className="text-[10px] text-muted-foreground/70 font-mono">
-                    {currentMin.toFixed(1)} — {currentMax.toFixed(1)}
+                <span className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground">{meta.name}</span>
+                <span className="text-[12px] font-semibold px-2 py-1 rounded-md"
+                    style={isActive ? { background: `${color}20`, color: color } : { background: 'var(--glass-bg-hover)', color: 'var(--color-muted-foreground)' }}>
+                    {currentMin.toFixed(min % 1 !== 0 ? 1 : 0)} - {currentMax.toFixed(min % 1 !== 0 ? 1 : 0)}
                 </span>
             </div>
 
-            {/* Min slider */}
-            <div className="relative flex flex-col gap-1">
+            {/* Dual Slider */}
+            <div className="relative h-6 w-full flex items-center mb-1">
+                {/* Background Track */}
+                <div className="absolute w-full h-1.5 bg-muted-foreground/20 rounded-full top-[10px]" />
+                
+                {/* Active Highlight */}
+                <div
+                    className="absolute h-1.5 rounded-full top-[10px]"
+                    style={{
+                        background: color,
+                        left: `${((currentMin - min) / (max - min)) * 100}%`,
+                        right: `${100 - ((currentMax - min) / (max - min)) * 100}%`
+                    }}
+                />
+                
                 <input
                     type="range" min={min} max={max} step={(max - min) / 100}
                     value={currentMin}
-                    onChange={e => update(Math.min(Number(e.target.value), currentMax), currentMax)}
-                    className="w-full h-1 appearance-none rounded-full cursor-pointer range-slider"
-                    style={{ accentColor: "#7C6FFF" }}
+                    onChange={e => update(Math.min(Number(e.target.value), currentMax - ((max-min)/100)), currentMax)}
+                    className="dual-range"
+                    style={themeStyle}
                 />
                 <input
                     type="range" min={min} max={max} step={(max - min) / 100}
                     value={currentMax}
-                    onChange={e => update(currentMin, Math.max(Number(e.target.value), currentMin))}
-                    className="w-full h-1 appearance-none rounded-full cursor-pointer"
-                    style={{ accentColor: "#00C9B1" }}
+                    onChange={e => update(currentMin, Math.max(Number(e.target.value), currentMin + ((max-min)/100)))}
+                    className="dual-range"
+                    style={themeStyle}
                 />
             </div>
-
+            
             {current && (
-                <button onClick={() => setFilter(meta.name, null)} className="text-[9px] text-muted-foreground/60 hover:text-destructive transition-colors flex items-center gap-0.5">
-                    <X className="w-2.5 h-2.5" /> Reset
+                <button onClick={() => setFilter(meta.name, null)} className="text-[10px] uppercase font-bold text-muted-foreground/60 hover:text-destructive transition-colors flex items-center gap-0.5">
+                    Clear
                 </button>
             )}
         </div>

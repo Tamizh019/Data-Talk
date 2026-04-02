@@ -34,17 +34,36 @@ Table: library: "table" — LAST RESORT ONLY
 - radar: {"y_cols": ["c1","c2","c3"], "group_col": null, "agg": "avg"}
 - table/kpi: null
 
-## SELECTION TABLE
-| Data shape | Best charts |
-|---|---|
-| 1 row, 1-3 numbers | KPI cards ONLY |
-| category + count/sum | horizontal_bar (sorted desc) + donut + KPI |
-| 2-10 categories + 2+ metrics | bar + stacked_bar + KPI |
-| date/time + value | area (smooth) + KPI |
-| 3+ numeric columns per row | radar + scatter + KPI |
-| >15 unique categories | treemap or scatter (NEVER bar/pie) |
-| PURE text/ID, no numbers | table (ONLY this case) |
-| User asks specific type | ALWAYS honor it |
+## ⚠️ DIVERSITY RULE (CRITICAL — MUST FOLLOW)
+- NEVER use the same chart_type more than ONCE in a single response
+- Each chart in your response MUST be a DIFFERENT type
+- Example GOOD: [KPI, donut, horizontal_bar, area, scatter]
+- Example BAD: [KPI, bar, horizontal_bar, bar, scatter] ← bar repeated = WRONG
+
+## SELECTION TABLE — choose the BEST type per visualization need
+| Visualization need | Best chart_type | When to use |
+|---|---|---|
+| Show totals/averages/counts | KPI cards | Always first; 1-4 key metrics |
+| Compare values across categories | horizontal_bar (sorted) | Best for 3-15 categories with names |
+| Show proportional breakdown | donut or pie | Best for 2-8 categories showing % share |
+| Show trend over time/sequence | area or line | Best for time series or ordered data |
+| Show distribution/correlation | scatter | Best for 2 numeric columns |
+| Compare multiple metrics per group | radar | Best for 3+ metrics across groups |
+| Show hierarchical/nested data | treemap | Best for >15 categories |
+| Compare 2+ groups across categories | stacked_bar | Best for grouped comparisons |
+| Simple category comparison | bar | Use ONLY if no other chart_type fits |
+
+## FORBIDDEN PATTERNS — NEVER DO THESE
+- ❌ Two or more bar charts in one response
+- ❌ Two or more scatter charts in one response
+- ❌ Using bar when horizontal_bar would show names better
+- ❌ Using bar/pie with >12 categories (use treemap or horizontal_bar instead)
+- ❌ Generating a table when ANY numeric column exists
+
+## LONG LABEL HANDLING (CRITICAL)
+- If category names are longer than 25 characters, truncate them to 22 chars + "…" in the data
+- For long-name categories: ALWAYS prefer horizontal_bar or donut (NOT vertical bar)
+- For horizontal_bar with long names: set grid.left to "35%" and containLabel: true
 
 ## TABLEAU/POWER BI QUALITY CONFIG RULES
 Apply ALL of the following to EVERY chart:
@@ -54,7 +73,7 @@ Set on root of every config:
 "animation": true, "animationDuration": 900, "animationEasing": "cubicOut", "animationDurationUpdate": 500
 
 ### GRID (for all axis-based charts)
-"grid": {"left": "5%", "right": "5%", "top": "18%", "bottom": "8%", "containLabel": true}
+"grid": {"left": "5%", "right": "5%", "top": "18%", "bottom": "12%", "containLabel": true}
 
 ### TOOLTIP (REQUIRED)
 For bar/line/area/horizontal_bar:
@@ -96,6 +115,11 @@ For scatter: "tooltip": {"trigger": "item"}
 - "symbolSize": 10
 - "emphasis": {"symbolSize": 16, "itemStyle": {"shadowBlur":12,"shadowColor":"rgba(124,111,255,0.5)"}}
 
+### RADAR CHARTS
+- "radar": {"indicator": [{"name":"col1","max":100}, ...]}
+- "series": [{"type":"radar","data":[...]}]
+- Great for comparing entities across 3+ dimensions
+
 ### DATA ZOOM (for charts with >10 data points)
 "dataZoom": [{"type": "inside", "start": 0, "end": 100}]
 
@@ -104,6 +128,7 @@ For scatter: "tooltip": {"trigger": "item"}
 2. Limit to max 5 charts total (quality > quantity)
 3. Always start with KPI cards if there are numeric aggregates
 4. NEVER use a table unless data is truly unvisualizable
+5. EVERY chart must be a DIFFERENT chart_type (diversity rule)
 
 ## OUTPUT FORMAT
 Strict JSON array. No markdown. No explanation.

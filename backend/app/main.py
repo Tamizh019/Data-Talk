@@ -163,6 +163,106 @@ async def connect_database(payload: dict):
         raise HTTPException(status_code=500, detail=f"Connection failed: {str(e)}")
 
 
+@app.get("/api/analytics", tags=["analytics"])
+async def get_analytics():
+    """Auto-generate dashboard analytics from the connected database."""
+    from fastapi import HTTPException
+    from app.core.sql_executor import execute_sql
+    from app.core.schema_indexer import schema_indexer
+
+    try:
+        tables = await schema_indexer.fetch_db_schema()
+        if not tables:
+            raise HTTPException(status_code=400, detail="No tables found. Connect a database first.")
+
+        analytics = []
+
+        for table_info in tables[:5]:  # Cap at 5 tables
+            table_name = table_info.get("table", "")
+            columns_str = table_info.get("columns", "")
+            if not table_name or not columns_str:
+                continue
+
+            cols = [c.strip() for c in columns_str.split(",") if c.strip()]
+            table_data = {"table": table_name, "columns": cols, "kpis": [], "distributions": [], "top_records": []}
+
+            # KPI: Row count
+            try:
+                rows, _ = await execute_sql(f'SELECT COUNT(*) AS total FROM "{table_name}"')
+                total = rows[0]["total"] if rows else 0
+                table_data["kpis"].append({"label": "Total Records", "value": total})
+            except Exception:
+                total = 0
+                table_data["kpis"].append({"label": "Total Records", "value": "N/A"})
+
+            # Detect column types via a sample query
+            try:
+                sample_rows, sample_cols = await execute_sql(f'SELECT * FROM "{table_name}" LIMIT 5')
+            except Exception:
+                sample_rows, sample_cols = [], cols
+
+            text_cols = []
+            numeric_cols = []
+            for col in sample_cols:
+                if sample_rows:
+                    val = sample_rows[0].get(col)
+                    if val is not None:
+                        try:
+                            float(val)
+                            numeric_cols.append(col)
+                        except (ValueError, TypeError):
+                            text_cols.append(col)
+                    else:
+                        text_cols.append(col)
+
+            # KPI: Numeric column averages
+            for nc in numeric_cols[:3]:
+                try:
+                    rows, _ = await execute_sql(f'SELECT ROUND(AVG("{nc}")::numeric, 2) AS avg_val, MIN("{nc}") AS min_val, MAX("{nc}") AS max_val FROM "{table_name}"')
+                    if rows:
+                        table_data["kpis"].append({
+                            "label": f"Avg {nc}",
+                            "value": rows[0].get("avg_val", "N/A"),
+                            "min": rows[0].get("min_val"),
+                            "max": rows[0].get("max_val"),
+                        })
+                except Exception:
+                    pass
+
+            # Distribution: GROUP BY text columns
+            for tc in text_cols[:2]:
+                try:
+                    rows, _ = await execute_sql(f'SELECT "{tc}", COUNT(*) AS count FROM "{table_name}" GROUP BY "{tc}" ORDER BY count DESC LIMIT 10')
+                    if rows and len(rows) > 1:
+                        table_data["distributions"].append({
+                            "column": tc,
+                            "data": rows,
+                        })
+                except Exception:
+                    pass
+
+            # Top records by first numeric column
+            if numeric_cols:
+                try:
+                    top_col = numeric_cols[0]
+                    display_cols = sample_cols[:5]
+                    select_clause = ", ".join([f'"{c}"' for c in display_cols])
+                    rows, _ = await execute_sql(f'SELECT {select_clause} FROM "{table_name}" ORDER BY "{top_col}" DESC LIMIT 5')
+                    if rows:
+                        table_data["top_records"] = {"ranked_by": top_col, "columns": display_cols, "rows": rows}
+                except Exception:
+                    pass
+
+            analytics.append(table_data)
+
+        return {"analytics": analytics}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analytics generation failed: {str(e)}")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "data-talk-api"}

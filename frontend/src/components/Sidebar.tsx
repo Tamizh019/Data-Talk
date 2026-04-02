@@ -1,50 +1,84 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { PlusCircle, MessageSquare, Database, Settings, Trash2, Sun, Moon, ChevronDown, ChevronRight, TableProperties, Columns, RefreshCw } from "lucide-react";
+/*
+ * Sidebar — Claude-style
+ * - Shows conversations directly (Recents section with scrollable list)
+ * - Tools section: Analytics, Schema (drawer), Reports
+ * - Per-chat "..." menu with Rename + Delete
+ * - Inline rename via double-click or menu
+ * - Search to filter conversations
+ */
+
+import { useState, useEffect, useRef } from "react";
+import {
+    Plus, Search, BarChart2, FileText, Database,
+    MessageSquare, Trash2, Pencil, MoreHorizontal,
+    Sun, Moon, Settings, X, Check,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useChat } from "@/lib/chat-context";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "next-themes";
-import { fetchSchema, type SchemaTable } from "@/lib/api";
+import { useRouter, usePathname } from "next/navigation";
+
+export type SidebarView = "conversations" | "schema" | "analytics" | "reports";
 
 interface SidebarProps {
-    dbConnected?: boolean;
+    onSchemaToggle?: () => void;
 }
 
-export default function Sidebar({ dbConnected = false }: SidebarProps) {
-    const { conversations, activeId, setActiveChat, createNewChat, deleteChat } = useChat();
+export default function Sidebar({ onSchemaToggle }: SidebarProps) {
+    const { conversations, activeId, setActiveChat, createNewChat, deleteChat, renameChat } = useChat();
     const { user } = useAuth();
     const { theme, setTheme } = useTheme();
+    const router = useRouter();
+    const pathname = usePathname();
     const [mounted, setMounted] = useState(false);
-    const [schemaOpen, setSchemaOpen] = useState(true);
+    const [search, setSearch] = useState("");
 
-    // Schema state
-    const [tables, setTables] = useState<SchemaTable[]>([]);
-    const [loadingSchema, setLoadingSchema] = useState(false);
-    const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
+    // Per-row context menu state
+    const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    // Rename state
+    const [renamingId, setRenamingId] = useState<string | null>(null);
+    const [renameValue, setRenameValue] = useState("");
+    const renameInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => { setMounted(true); }, []);
 
-    const loadSchema = async () => {
-        if (!dbConnected) return;
-        setLoadingSchema(true);
-        try {
-            const data = await fetchSchema();
-            setTables(data.tables || []);
-        } catch { }
-        finally { setLoadingSchema(false); }
+    // Close context menu on outside click
+    useEffect(() => {
+        const h = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node))
+                setMenuOpenId(null);
+        };
+        if (menuOpenId) document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [menuOpenId]);
+
+    // Focus rename input when activated
+    useEffect(() => {
+        if (renamingId) renameInputRef.current?.focus();
+    }, [renamingId]);
+
+    const startRename = (id: string, currentTitle: string) => {
+        setMenuOpenId(null);
+        setRenamingId(id);
+        setRenameValue(currentTitle);
     };
 
-    useEffect(() => { if (dbConnected) loadSchema(); }, [dbConnected]);
+    const commitRename = () => {
+        if (renamingId) renameChat(renamingId, renameValue);
+        setRenamingId(null);
+    };
 
-    const toggleTable = (table: string) => {
-        setExpandedTables(prev => {
-            const next = new Set(prev);
-            if (next.has(table)) next.delete(table); else next.add(table);
-            return next;
-        });
+    const filteredConvs = conversations.filter(c =>
+        c.title.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const goToChat = () => {
+        if (pathname !== "/chat") router.push("/chat");
     };
 
     return (
@@ -58,184 +92,224 @@ export default function Sidebar({ dbConnected = false }: SidebarProps) {
                 WebkitBackdropFilter: "blur(20px)",
             }}
         >
-            {/* ── Brand ─────────────────────────────────────────────── */}
-            <div className="flex items-center gap-3 px-5 py-5 shrink-0">
-                <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: "linear-gradient(135deg, #7C6FFF, #00C9B1)", boxShadow: "0 0 12px rgba(124,111,255,0.35)" }}
-                >
-                    <svg className="w-[16px] h-[16px] text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-                    </svg>
+            {/* ── Brand ─────────────────────────────────────────────────── */}
+            <div className="flex items-center gap-1.5 px-5 pt-5 pb-4 shrink-0">
+                <div className="w-12 h-12 flex items-center justify-center shrink-0">
+                    {mounted ? (
+                        <img 
+                            src={theme === "dark" ? "/logo1.png" : "/logo.png"} 
+                            alt="Data-Talk Logo" 
+                            className="w-full h-full object-contain drop-shadow-md transition-opacity" 
+                        />
+                    ) : (
+                        <div className="w-full h-full rounded-xl bg-foreground/10 animate-pulse" />
+                    )}
                 </div>
-                <span className="font-bold text-[16px] tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-muted-foreground">
+                <span className="font-bold text-[18px] tracking-tight text-foreground">
                     Data-Talk
                 </span>
             </div>
 
-            {/* ── New Chat ──────────────────────────────────────────── */}
-            <div className="px-4 pb-4 shrink-0">
+            <div className="px-4 pb-3 shrink-0">
                 <button
-                    onClick={createNewChat}
-                    className="group relative w-full p-[1px] rounded-xl overflow-hidden transition-all"
+                    onClick={() => { createNewChat(); goToChat(); }}
+                    className="group w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] bg-[#633BFE] hover:bg-[#5028E5] dark:bg-[#7C5DFE] dark:hover:bg-[#9175FF] text-white font-semibold text-[13px] shadow-[0_4px_12px_rgba(99,59,254,0.25)] dark:shadow-[0_4px_12px_rgba(124,93,254,0.25)]"
                 >
-                    <div
-                        className="absolute inset-0 rounded-xl opacity-50"
-                        style={{ background: "linear-gradient(90deg, rgba(124,111,255,0.5), rgba(0,201,177,0.5))" }}
-                    />
-                    <div className="relative flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/40 transition-colors bg-background/50 dark:bg-[#13131F]/90 backdrop-blur-sm">
-                        <span className="text-[#00C9B1] text-lg leading-none font-light">+</span>
-                        <span className="text-sm font-medium text-foreground">New Chat</span>
-                    </div>
+                    <Plus className="w-4 h-4 shrink-0 transition-transform group-hover:rotate-90" />
+                    New Analysis
                 </button>
             </div>
 
-            <div className="mx-4 border-t border-border/50 mb-3 shrink-0" />
-
-            {/* ── Recent Chats ────────────────────────────────────────── */}
-            <div className="px-3 flex flex-col min-h-0" style={{ flex: 4 }}>
-                <p className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest px-2 pb-2 shrink-0">
-                    Recent
-                </p>
-                <ScrollArea className="flex-1">
-                    <div className="space-y-0.5 px-1 pr-2">
-                        {conversations.map((item) => (
-                            <div
-                                key={item.id}
-                                className={cn(
-                                    "flex items-center justify-between w-full px-3 py-2 rounded-lg transition-all group cursor-pointer border-l-2",
-                                    activeId === item.id
-                                        ? "bg-primary/10 border-primary text-foreground"
-                                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-foreground/5 hover:border-primary/30"
-                                )}
-                                onClick={() => setActiveChat(item.id)}
-                            >
-                                <div className="flex items-center gap-2.5 min-w-0 text-left text-[12px]">
-                                    <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-60" />
-                                    <span className="truncate flex-1">{item.title}</span>
-                                </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); deleteChat(item.id); }}
-                                    className={cn(
-                                        "p-1 rounded-md hover:bg-red-500/20 hover:text-red-400 transition-colors opacity-0 focus:opacity-100 shrink-0",
-                                        activeId === item.id ? "opacity-100" : "group-hover:opacity-100"
-                                    )}
-                                >
-                                    <Trash2 className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </ScrollArea>
-            </div>
-
-            {/* ── Schema Explorer (bottom, collapsible) ─────────────── */}
-            <div
-                className="border-t flex flex-col min-h-0 overflow-hidden"
-                style={{ flex: 6, borderColor: "var(--glass-border)" }}
-            >
-                {/* Schema header toggle — use div (not button) so the inner refresh button is valid HTML */}
+            {/* ── Search ──────────────────────────────────────────────── */}
+            <div className="px-4 pb-3 shrink-0">
                 <div
-                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-foreground/5 transition-colors cursor-pointer select-none"
-                    onClick={() => setSchemaOpen(o => !o)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => e.key === "Enter" && setSchemaOpen(o => !o)}
-                >
-                    <div
-                        className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
-                        style={{ background: "rgba(124,111,255,0.12)" }}
-                    >
-                        <Database className="w-3 h-3" style={{ color: "#7C6FFF" }} />
-                    </div>
-                    <span className="text-[11px] font-bold text-foreground/80 flex-1 text-left">Schema Explorer</span>
-                    {tables.length > 0 && (
-                        <span className="text-[9px] text-muted-foreground/50 mr-1">{tables.length} tables</span>
-                    )}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); loadSchema(); }}
-                        disabled={loadingSchema || !dbConnected}
-                        className="p-1 rounded hover:bg-foreground/10 text-muted-foreground/50 hover:text-foreground transition-colors disabled:opacity-30 mr-1"
-                        title="Refresh schema"
-                    >
-                        <RefreshCw className={`w-2.5 h-2.5 ${loadingSchema ? "animate-spin" : ""}`} />
-                    </button>
-                    {schemaOpen
-                        ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
-                        : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
-                    }
-                </div>
-
-                {/* Schema body */}
-                {schemaOpen && (
-                    <div
-                        className="flex-1 overflow-y-auto custom-scrollbar"
-                        style={{ borderTop: "1px solid var(--glass-border)" }}
-                    >
-                        {!dbConnected ? (
-                            <div className="flex flex-col items-center justify-center py-6 gap-2">
-                                <Database className="w-5 h-5 text-muted-foreground/30" />
-                                <p className="text-[11px] text-muted-foreground/50 text-center px-4">Connect a database to explore schema</p>
-                            </div>
-                        ) : loadingSchema ? (
-                            <div className="space-y-2 p-3">
-                                {[1, 2, 3].map(i => (
-                                    <div key={i} className="h-7 rounded-lg animate-pulse" style={{ background: "var(--glass-bg-hover)" }} />
-                                ))}
-                            </div>
-                        ) : tables.length === 0 ? (
-                            <p className="text-[11px] text-muted-foreground/50 italic text-center py-4">No tables found</p>
-                        ) : (
-                            <div className="py-1.5 px-2 space-y-0.5">
-                                {tables.map(t => {
-                                    const isExpanded = expandedTables.has(t.table);
-                                    const cols = t.columns ? t.columns.split(",").map(c => c.trim()).filter(Boolean) : [];
-                                    return (
-                                        <div key={t.table}>
-                                            <button
-                                                onClick={() => toggleTable(t.table)}
-                                                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg hover:bg-foreground/5 transition-colors group text-left"
-                                            >
-                                                <span className="text-muted-foreground/50 group-hover:text-muted-foreground transition-colors shrink-0">
-                                                    {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                                </span>
-                                                <TableProperties className="w-3 h-3 text-muted-foreground/50 group-hover:text-primary transition-colors shrink-0" />
-                                                <span className="text-[11px] font-medium text-muted-foreground/80 group-hover:text-foreground transition-colors truncate">
-                                                    {t.table}
-                                                </span>
-                                                {cols.length > 0 && (
-                                                    <span className="ml-auto text-[9px] text-muted-foreground/40 shrink-0">{cols.length}</span>
-                                                )}
-                                            </button>
-                                            {isExpanded && cols.length > 0 && (
-                                                <div className="pl-8 py-0.5 space-y-0.5">
-                                                    {cols.map(col => (
-                                                        <div key={col} className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-foreground/5 transition-colors cursor-default">
-                                                            <Columns className="w-2.5 h-2.5 text-muted-foreground/40 shrink-0" />
-                                                            <span className="text-[10px] text-muted-foreground/60 truncate">{col}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* ── User / Workspace ──────────────────────────────────── */}
-            <div className="px-4 pb-4 pt-3 shrink-0 border-t" style={{ borderColor: "var(--glass-border)" }}>
-                <div
-                    className="flex items-center gap-3 p-3 rounded-xl transition-colors hover:bg-foreground/5 cursor-pointer"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl"
                     style={{ background: "var(--glass-bg-hover)", border: "1px solid var(--glass-border)" }}
                 >
+                    <Search className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                    <input
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Search analyses..."
+                        className="flex-1 bg-transparent text-[12px] text-foreground/80 placeholder:text-muted-foreground/40 outline-none"
+                    />
+                    {search && (
+                        <button onClick={() => setSearch("")} className="text-muted-foreground/40 hover:text-foreground transition-colors">
+                            <X className="w-3 h-3" />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* ── Tools ───────────────────────────────────────────────── */}
+            <div className="px-4 pb-2 shrink-0">
+                <p className="text-[9px] font-extrabold text-muted-foreground/40 uppercase tracking-[0.2em] px-1 mb-2">
+                    Tools
+                </p>
+                <nav className="space-y-0.5">
+                    {/* Analytics */}
+                    <button
+                        onClick={() => router.push("/analytics")}
+                        className={cn(
+                            "flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left transition-all group",
+                            pathname === "/analytics"
+                                ? "text-foreground bg-foreground/5"
+                                : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                        )}
+                    >
+                        <BarChart2 className="w-4 h-4 shrink-0" style={{ color: pathname === "/analytics" ? "#00C9B1" : undefined }} />
+                        <span className="text-[12px] font-semibold">Analytics</span>
+                    </button>
+
+                    {/* Schema — drawer toggle */}
+                    <button
+                        onClick={() => { goToChat(); onSchemaToggle?.(); }}
+                        className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left transition-all text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                    >
+                        <Database className="w-4 h-4 shrink-0" style={{ color: "#7C6FFF" }} />
+                        <span className="text-[12px] font-semibold">Schema</span>
+                    </button>
+
+                    {/* Reports */}
+                    <button
+                        onClick={() => router.push("/reports")}
+                        className={cn(
+                            "flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left transition-all group",
+                            pathname === "/reports"
+                                ? "text-foreground bg-foreground/5"
+                                : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+                        )}
+                    >
+                        <FileText className="w-4 h-4 shrink-0" />
+                        <span className="text-[12px] font-semibold">Reports</span>
+                    </button>
+                </nav>
+            </div>
+
+            {/* ── Recents ─────────────────────────────────────────────── */}
+            <div className="flex flex-col flex-1 min-h-0 px-4 pb-2">
+                <p className="text-[9px] font-extrabold text-muted-foreground/40 uppercase tracking-[0.2em] px-1 mb-2 shrink-0">
+                    Recents
+                </p>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-0.5 pr-0.5">
+                    {filteredConvs.length === 0 ? (
+                        <div className="flex flex-col items-center py-6 gap-2">
+                            <MessageSquare className="w-6 h-6 text-muted-foreground/20" />
+                            <p className="text-[11px] text-muted-foreground/40 text-center">
+                                {search ? "No matches found" : "No past analyses"}
+                            </p>
+                        </div>
+                    ) : (
+                        filteredConvs.map(item => {
+                            const isActive = activeId === item.id;
+                            const isRenaming = renamingId === item.id;
+                            const isMenuOpen = menuOpenId === item.id;
+
+                            return (
+                                <div key={item.id} className="relative group/row">
+                                    <div
+                                        onClick={() => { if (!isRenaming) { setActiveChat(item.id); goToChat(); } }}
+                                        className={cn(
+                                            "flex items-center gap-2 w-full px-3 py-2 rounded-xl transition-all cursor-pointer select-none border-l-2",
+                                            isActive
+                                                ? "text-foreground border-[#7C6FFF] ml-[2px]"
+                                                : "text-muted-foreground border-transparent hover:text-foreground hover:bg-foreground/5 ml-[2px]"
+                                        )}
+                                        style={isActive ? {
+                                            background: "rgba(124,111,255,0.08)",
+                                        } : undefined}
+                                    >
+
+                                        {/* Rename input OR title */}
+                                        {isRenaming ? (
+                                            <input
+                                                ref={renameInputRef}
+                                                value={renameValue}
+                                                onChange={e => setRenameValue(e.target.value)}
+                                                onBlur={commitRename}
+                                                onKeyDown={e => {
+                                                    if (e.key === "Enter") commitRename();
+                                                    if (e.key === "Escape") setRenamingId(null);
+                                                }}
+                                                onClick={e => e.stopPropagation()}
+                                                className="flex-1 bg-transparent text-[12px] font-medium text-foreground outline-none border-b border-[#7C6FFF]/60 pb-0.5"
+                                            />
+                                        ) : (
+                                            <span className="flex-1 text-[12px] font-medium truncate">{item.title}</span>
+                                        )}
+
+                                        {/* Confirm rename */}
+                                        {isRenaming && (
+                                            <button
+                                                onClick={e => { e.stopPropagation(); commitRename(); }}
+                                                className="shrink-0 p-0.5 rounded text-[#7C6FFF]"
+                                            >
+                                                <Check className="w-3 h-3" />
+                                            </button>
+                                        )}
+
+                                        {/* "..." menu trigger — shows on hover or when active */}
+                                        {!isRenaming && (
+                                            <button
+                                                onClick={e => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : item.id); }}
+                                                className={cn(
+                                                    "shrink-0 p-1 rounded-md transition-all hover:bg-foreground/10",
+                                                    isMenuOpen
+                                                        ? "opacity-100 text-foreground"
+                                                        : "opacity-0 group-hover/row:opacity-100 text-muted-foreground"
+                                                )}
+                                            >
+                                                <MoreHorizontal className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Context menu dropdown */}
+                                    {isMenuOpen && (
+                                        <div
+                                            ref={menuRef}
+                                            className="absolute left-0 right-0 top-full mt-1 z-[200] rounded-xl overflow-hidden shadow-2xl animate-fadein"
+                                            style={{
+                                                background: "var(--glass-bg)",
+                                                border: "1px solid var(--glass-border-strong)",
+                                                backdropFilter: "blur(24px)",
+                                            }}
+                                        >
+                                            <button
+                                                onClick={e => { e.stopPropagation(); startRename(item.id, item.title); }}
+                                                className="flex items-center gap-2.5 w-full px-3.5 py-2.5 text-[12px] font-medium text-foreground/80 hover:bg-foreground/5 hover:text-foreground transition-colors text-left"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5 text-muted-foreground/60" />
+                                                Rename
+                                            </button>
+                                            <div style={{ height: "1px", background: "var(--glass-border)" }} />
+                                            <button
+                                                onClick={e => { e.stopPropagation(); setMenuOpenId(null); deleteChat(item.id); }}
+                                                className="flex items-center gap-2.5 w-full px-3.5 py-2.5 text-[12px] font-medium text-red-400 hover:bg-red-500/10 transition-colors text-left"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                Delete
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
+
+            {/* ── User Footer ──────────────────────────────────────────── */}
+            <div
+                className="px-4 py-3 shrink-0"
+                style={{ borderTop: "1px solid var(--glass-border)" }}
+            >
+                <div
+                    className="flex items-center gap-2.5 p-2.5 rounded-xl transition-colors hover:bg-foreground/5 cursor-pointer"
+                >
                     <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-sm shrink-0 overflow-hidden"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-white text-[12px] shrink-0"
                         style={{ background: "linear-gradient(135deg, #7C6FFF, #00C9B1)" }}
                     >
                         {user?.user_metadata?.full_name
@@ -243,25 +317,29 @@ export default function Sidebar({ dbConnected = false }: SidebarProps) {
                             : user?.email ? user.email.charAt(0).toUpperCase() : "DT"}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-bold text-foreground truncate">
+                        <p className="text-[11px] font-semibold text-foreground truncate">
                             {user?.user_metadata?.full_name || user?.user_metadata?.name || "Premium User"}
                         </p>
-                        <p className="text-[10px] text-muted-foreground truncate">
+                        <p className="text-[9px] text-muted-foreground/50 truncate">
                             {user?.email || "Workspace Admin"}
                         </p>
                     </div>
-                    {mounted && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setTheme(theme === "dark" ? "light" : "dark"); }}
-                            className="p-1.5 rounded-md hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                            title="Toggle Theme"
-                        >
-                            {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-                        </button>
-                    )}
-                    <a href="/profile" onClick={(e) => e.stopPropagation()}>
-                        <Settings className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0" />
-                    </a>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {mounted && (
+                            <button
+                                onClick={e => { e.stopPropagation(); setTheme(theme === "dark" ? "light" : "dark"); }}
+                                className="p-1.5 rounded-lg hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors"
+                                title="Toggle theme"
+                            >
+                                {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+                            </button>
+                        )}
+                        <a href="/profile">
+                            <button className="p-1.5 rounded-lg hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors">
+                                <Settings className="w-3.5 h-3.5" />
+                            </button>
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

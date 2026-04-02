@@ -5,6 +5,7 @@ safe Python (Pandas/NumPy) code to transform the data before passing it to the v
 """
 import json
 import logging
+import decimal
 import pandas as pd
 import numpy as np
 from groq import AsyncGroq
@@ -31,6 +32,13 @@ If no python is needed (the SQL data is already perfect for the question), outpu
 Otherwise, output ONLY the raw Python code. No markdown fences, no explanations.
 """
 
+def _json_serializer(obj):
+    """Serialize types that the default JSON encoder cannot handle (e.g. Decimal from PostgreSQL)."""
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 async def run_python_sandbox(user_query: str, rows: list, columns: list) -> tuple[list, list]:
     # 1. Quick Keyword Heuristics
     math_keywords = ["predict", "forecast", "regression", "average of", "trend", "correlation", "variance", "std dev", "stat"]
@@ -41,9 +49,8 @@ async def run_python_sandbox(user_query: str, rows: list, columns: list) -> tupl
 
     # 2. Prompt LLM to write code
     sample_data = rows[:5]
-    prompt = f"### User Question\n{user_query}\n\n### Data Columns\n{columns}\n\n### Sample Data\n{json.dumps(sample_data)}\n\n### Python Code:"
-    
     try:
+        prompt = f"### User Question\n{user_query}\n\n### Data Columns\n{columns}\n\n### Sample Data\n{json.dumps(sample_data, default=_json_serializer)}\n\n### Python Code:"
         completion = await client.chat.completions.create(
             model=settings.python_agent_model,
             messages=[
