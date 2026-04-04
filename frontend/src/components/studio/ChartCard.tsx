@@ -125,8 +125,9 @@ export default function ChartCard({ block, index, groupId, isDark, onDrilldown, 
             }
             if (isPie) {
                 e.radius    = currentType === "donut" ? (e.radius ?? ["42%", "70%"]) : (e.radius ?? "65%");
-                e.label     = e.label ?? { show: true, formatter: "{b}\n{d}%", fontSize: 11 };
-                e.labelLine = e.labelLine ?? { length: 12, length2: 8 };
+                e.label     = { show: false }; // Hide overlapping messy slice labels
+                e.labelLine = { show: false };
+                e.center    = e.center ?? ["40%", "50%"]; // Offset to left so right legend fits
                 e.emphasis  = e.emphasis ?? { itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.3)" }, scaleSize: 8 };
             }
             if (isScatter) {
@@ -135,17 +136,21 @@ export default function ChartCard({ block, index, groupId, isDark, onDrilldown, 
             }
             if (isTreemap) {
                 e.leafDepth  = e.leafDepth  ?? 1;
-                e.breadcrumb = e.breadcrumb ?? { show: false };
-                e.roam       = e.roam       ?? false;
-                e.label      = e.label      ?? { show: true, fontSize: 12, fontWeight: "bold", color: "#fff" };
-                e.upperLabel = e.upperLabel ?? { show: false };
-                if (!e.itemStyle) e.itemStyle = { borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", gapWidth: 2 };
-                e.emphasis   = e.emphasis   ?? { label: { fontSize: 14 }, itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,0.3)" } };
+                e.breadcrumb = e.breadcrumb ?? { show: true, height: 22, itemStyle: { color: "rgba(124,111,255,0.15)", borderColor: "rgba(124,111,255,0.4)" } };
+                e.roam       = true; // Always allow scroll-zoom + click-drill on treemap
+                e.label      = e.label      ?? { show: true, fontSize: 11, fontWeight: "bold", color: "#fff", overflow: "truncate" };
+                e.upperLabel = e.upperLabel ?? { show: true, height: 20, fontSize: 11, color: "#fff" };
+                e.visibleMin = e.visibleMin ?? 300;
+                // itemStyle at series level only (NOT per data node — that causes ECharts 'push' crash)
+                if (!e.itemStyle) e.itemStyle = { borderWidth: 2, borderColor: "rgba(255,255,255,0.25)", gapWidth: 2 };
+                e.emphasis   = e.emphasis   ?? { label: { fontSize: 13 }, itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.4)" } };
             }
             if (isFunnel) {
-                e.label     = e.label     ?? { show: true, position: "inside", fontSize: 12, fontWeight: "bold", color: "#fff" };
-                e.itemStyle = e.itemStyle ?? { borderWidth: 1, borderColor: "#fff" };
-                e.emphasis  = e.emphasis  ?? { label: { fontSize: 14 } };
+                e.label     = e.label     ?? { show: true, position: "right", fontSize: 11, color: "inherit" };
+                e.labelLine = e.labelLine ?? { show: true, length: 10, lineStyle: { width: 1 } };
+                e.itemStyle = e.itemStyle ?? { borderWidth: 1, borderColor: "rgba(255,255,255,0.4)" };
+                e.emphasis  = e.emphasis  ?? { label: { fontSize: 12, fontWeight: "bold" }, itemStyle: { shadowBlur: 12, shadowColor: "rgba(0,0,0,0.3)" } };
+                e.gap       = e.gap       ?? 2;
             }
             return e;
         });
@@ -170,15 +175,27 @@ export default function ChartCard({ block, index, groupId, isDark, onDrilldown, 
         const patchedXAxis = baseOption.xAxis ? patchAxis(baseOption.xAxis, baseOption.xAxis?.type === "category", false) : baseOption.xAxis;
         const patchedYAxis = baseOption.yAxis ? patchAxis(baseOption.yAxis, baseOption.yAxis?.type === "category", true)  : baseOption.yAxis;
 
+        const baseLegend = typeof baseOption.legend === "object" ? baseOption.legend : {};
+        
         return {
             ...baseOption,
             xAxis:  patchedXAxis,
             yAxis:  patchedYAxis,
             series: Array.isArray(baseOption.series) ? enhanceSeries(baseOption.series) : baseOption.series,
+            legend: {
+                ...baseLegend,
+                type: "scroll",
+                orient: isPie ? "vertical" : baseLegend.orient || "horizontal",
+                right: isPie ? 5 : baseLegend.right || "auto",
+                top: isPie ? 20 : baseLegend.top || "auto",
+                bottom: !isPie ? 0 : baseLegend.bottom || "auto",
+                formatter: (name: string) => truncate(name),
+                textStyle: { width: 140, overflow: "truncate", ...baseLegend.textStyle },
+            },
             tooltip: isItemTooltip
                 ? {
                     trigger: "item",
-                    ...(isPie ? { formatter: "{b}: <b>{c}</b> ({d}%)" } : {}),
+                    ...(isPie ? { formatter: "{b}: <br/><b>{c}</b> ({d}%)" } : {}),
                     ...(typeof baseOption.tooltip === "object" ? baseOption.tooltip : {}),
                   }
                 : {

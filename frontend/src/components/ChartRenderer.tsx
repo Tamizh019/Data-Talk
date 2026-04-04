@@ -7,7 +7,7 @@ import { Layers } from "lucide-react";
 import DataTable from "./DataTable";
 
 // ── Label truncation helper ──────────────────────────────────────────────────
-const MAX_LABEL = 22;
+const MAX_LABEL = 24;
 const truncate = (s: string) => (!s || s.length <= MAX_LABEL ? s : s.slice(0, MAX_LABEL - 1).trimEnd() + "…");
 
 // ── Dark theme (used in dark mode) ──────────────────────────────────────────
@@ -162,10 +162,10 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
                 enhanced.radius = chart_type === "donut"
                     ? (enhanced.radius ?? ["40%", "60%"])
                     : (enhanced.radius ?? "50%");
-                enhanced.center     = enhanced.center ?? ["40%", "50%"];
+                enhanced.label     = { show: false }; // Hide overlapping messy slice labels
+                enhanced.labelLine = { show: false };
+                enhanced.center     = enhanced.center ?? ["40%", "50%"]; // Offset left so right legend fits
                 enhanced.itemStyle  = { ...enhanced.itemStyle, borderRadius: 4, borderColor: "transparent", borderWidth: 2 };
-                enhanced.label      = enhanced.label ?? { show: true, formatter: (p: any) => `${truncate(p.name)}\n${p.percent}%`, fontSize: 10 };
-                enhanced.labelLine  = enhanced.labelLine ?? { length: 8, length2: 10, smooth: true };
                 enhanced.emphasis   = enhanced.emphasis ?? { itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.3)" }, scaleSize: 6 };
             }
 
@@ -176,19 +176,22 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
 
             if (isTreemap) {
                 enhanced.leafDepth  = enhanced.leafDepth  ?? 1;
-                enhanced.breadcrumb = enhanced.breadcrumb ?? { show: false };
-                enhanced.roam       = enhanced.roam       ?? false;
-                enhanced.label      = enhanced.label      ?? { show: true, fontSize: 12, fontWeight: "bold", color: "#fff" };
-                enhanced.upperLabel = enhanced.upperLabel ?? { show: false };
+                enhanced.breadcrumb = enhanced.breadcrumb ?? { show: true, height: 22, itemStyle: { color: "rgba(124,111,255,0.15)", borderColor: "rgba(124,111,255,0.4)" } };
+                enhanced.roam       = true; // Always allow scroll-zoom
+                enhanced.label      = enhanced.label      ?? { show: true, fontSize: 11, fontWeight: "bold", color: "#fff", overflow: "truncate" };
+                enhanced.upperLabel = enhanced.upperLabel ?? { show: true, height: 20, fontSize: 11, color: "#fff" };
+                enhanced.visibleMin = enhanced.visibleMin ?? 300;
                 // itemStyle at series level only (NOT per data node — that causes ECharts 'push' crash)
-                if (!enhanced.itemStyle) enhanced.itemStyle = { borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", gapWidth: 2 };
-                enhanced.emphasis   = enhanced.emphasis   ?? { label: { fontSize: 14 }, itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,0.3)" } };
+                if (!enhanced.itemStyle) enhanced.itemStyle = { borderWidth: 2, borderColor: "rgba(255,255,255,0.25)", gapWidth: 2 };
+                enhanced.emphasis   = enhanced.emphasis   ?? { label: { fontSize: 13 }, itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.4)" } };
             }
 
             if (isFunnel) {
-                enhanced.label    = enhanced.label    ?? { show: true, position: "inside", fontSize: 12, fontWeight: "bold", color: "#fff" };
-                enhanced.itemStyle = enhanced.itemStyle ?? { borderWidth: 1, borderColor: "#fff" };
-                enhanced.emphasis  = enhanced.emphasis  ?? { label: { fontSize: 14 } };
+                enhanced.label     = enhanced.label     ?? { show: true, position: "right", fontSize: 11, color: "inherit" };
+                enhanced.labelLine = enhanced.labelLine ?? { show: true, length: 10, lineStyle: { width: 1 } };
+                enhanced.itemStyle = enhanced.itemStyle ?? { borderWidth: 1, borderColor: "rgba(255,255,255,0.4)" };
+                enhanced.emphasis  = enhanced.emphasis  ?? { label: { fontSize: 12, fontWeight: "bold" }, itemStyle: { shadowBlur: 12, shadowColor: "rgba(0,0,0,0.3)" } };
+                enhanced.gap       = enhanced.gap       ?? 2;
             }
 
             return enhanced;
@@ -231,16 +234,16 @@ export default function ChartRenderer({ block }: ChartRendererProps) {
                 ...(typeof baseOption.tooltip === "object" ? baseOption.tooltip : {}),
               };
 
-        // ── Legend ───────────────────────────────────────────────────────
+        const baseLegend = typeof baseOption.legend === "object" ? baseOption.legend : {};
         const legendOverride = {
+            ...baseLegend,
             type: "scroll",
-            orient: isPie ? "vertical" : "horizontal",
-            right: isPie ? 5 : "auto",
-            top: isPie ? 20 : "auto",
-            bottom: !isPie ? 0 : "auto",
+            orient: isPie ? "vertical" : baseLegend.orient || "horizontal",
+            right: isPie ? 5 : baseLegend.right || "auto",
+            top: isPie ? 20 : baseLegend.top || "auto",
+            bottom: !isPie ? 0 : baseLegend.bottom || "auto",
             formatter: (name: string) => truncate(name),
-            textStyle: { width: 100, overflow: "truncate" as const },
-            ...(typeof baseOption.legend === "object" ? baseOption.legend : {}),
+            textStyle: { width: 140, overflow: "truncate" as const, ...baseLegend.textStyle },
         };
 
         // ── Grid — only for axis-based charts ───────────────────────────

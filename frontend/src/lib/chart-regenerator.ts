@@ -270,19 +270,35 @@ function buildRadar(meta: any, rows: Record<string, any>[]) {
     };
 }
 
-// ── Treemap ───────────────────────────────────────────────────────────────────
+// ── Value formatter helper ────────────────────────────────────────────────────
+function fmtVal(n: number): string {
+    if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+    if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1) + "K";
+    return String(n);
+}
+
+// ── Treemap ────────────────────────────────────────────────────────────────────
 function buildTreemap(meta: any, rows: Record<string, any>[]) {
     const catCol = meta.category_col || meta.x_col;
     const valCol = meta.value_col || (meta.y_cols || [])[0];
 
+    const MAX_ITEMS = 20; // More than 20 tiles = unreadable
+
     const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
     // NOTE: No per-item itemStyle — ECharts treemap assigns palette colors automatically.
     // Adding itemStyle per node causes an internal 'push' crash in ECharts' SeriesData.
-    const data = groups.map(g => ({
+    const all = groups.map(g => ({
         name: g,
         value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
     })).filter(d => d.value > 0)
       .sort((a, b) => b.value - a.value);
+
+    // Cap to top N, group rest into "Others"
+    let data = all.slice(0, MAX_ITEMS);
+    if (all.length > MAX_ITEMS) {
+        const othersVal = all.slice(MAX_ITEMS).reduce((s, d) => s + d.value, 0);
+        if (othersVal > 0) data.push({ name: "Others", value: othersVal });
+    }
 
     return {
         color: PALETTE,
@@ -292,17 +308,44 @@ function buildTreemap(meta: any, rows: Record<string, any>[]) {
             height: "100%",
             data,
             leafDepth: 1,
-            roam: false,
-            breadcrumb: { show: false },
-            label: { show: true, formatter: "{b}\n{c}", fontSize: 12, fontWeight: "bold", color: "#fff" },
-            upperLabel: { show: false },
-            itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", gapWidth: 2 },
-            emphasis: { label: { fontSize: 14 }, itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,0.3)" } },
+            // roam: scroll to zoom, click to drill down
+            roam: true,
+            zoom: 1,
+            scaleLimit: { min: 0.5, max: 4 },
+            breadcrumb: { show: true, height: 22, itemStyle: { color: "rgba(124,111,255,0.15)", borderColor: "rgba(124,111,255,0.4)" } },
+            label: {
+                show: true,
+                // Only show label when tile is big enough
+                formatter: (p: any) => {
+                    const name = String(p.name || "");
+                    const short = name.length > 14 ? name.slice(0, 13) + "…" : name;
+                    return `${short}\n${fmtVal(p.value)}`;
+                },
+                fontSize: 11,
+                fontWeight: "bold",
+                color: "#fff",
+                overflow: "truncate",
+            },
+            upperLabel: { show: true, height: 20, fontSize: 11, fontWeight: "bold", color: "#fff" },
+            itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.25)", gapWidth: 2 },
+            emphasis: {
+                label: { fontSize: 13 },
+                itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.4)" },
+            },
             levels: [
-                { itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.3)", gapWidth: 2 } },
+                { itemStyle: { borderWidth: 3, borderColor: "rgba(255,255,255,0.4)", gapWidth: 3 } },
+                { itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.25)", gapWidth: 2 } },
             ],
+            visibleMin: 300, // Hide labels on tiles smaller than 300px²
         }],
-        tooltip: { trigger: "item", formatter: (info: any) => `<b>${info.name}</b>: ${info.value}` },
+        tooltip: {
+            trigger: "item",
+            formatter: (info: any) => {
+                const total = data.reduce((s: number, d: any) => s + d.value, 0);
+                const pct = total > 0 ? ((info.value / total) * 100).toFixed(1) : "0";
+                return `<b>${info.name}</b><br/>${fmtVal(info.value)} <span style="color:#aaa">(${pct}%)</span>`;
+            },
+        },
     };
 }
 
@@ -311,27 +354,59 @@ function buildFunnel(meta: any, rows: Record<string, any>[]) {
     const catCol = meta.category_col || meta.x_col;
     const valCol = meta.value_col || (meta.y_cols || [])[0];
 
+    const MAX_STAGES = 8; // More than 8 funnel stages = impossible to read
+
     const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
-    const data = groups.map((g, i) => ({
+    const all = groups.map((g, i) => ({
         name: g,
         value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
         itemStyle: { color: PALETTE[i % PALETTE.length] },
     })).filter(d => d.value > 0)
       .sort((a, b) => b.value - a.value);
 
+    const data = all.slice(0, MAX_STAGES);
+    const wasClipped = all.length > MAX_STAGES;
+
     return {
         series: [{
             type: "funnel",
-            width: "70%",
-            left: "15%",
+            width: "55%",
+            left: "5%",
+            top: 10,
+            bottom: 10,
             data,
-            label: { show: true, position: "inside", formatter: "{b}\n{c}", fontSize: 12, fontWeight: "bold", color: "#fff" },
-            itemStyle: { borderWidth: 1, borderColor: "#fff" },
-            emphasis: { label: { fontSize: 14 } },
+            // Labels on the right side prevent the claustrophobic overlap inside narrow slices
+            label: {
+                show: true,
+                position: "right",
+                formatter: (p: any) => {
+                    const name = String(p.name || "");
+                    const short = name.length > 16 ? name.slice(0, 15) + "…" : name;
+                    return `${short}: ${fmtVal(p.value)}`;
+                },
+                fontSize: 11,
+                color: "inherit",
+            },
+            labelLine: { show: true, length: 10, lineStyle: { width: 1 } },
+            itemStyle: { borderWidth: 1, borderColor: "rgba(255,255,255,0.4)" },
+            emphasis: {
+                label: { fontSize: 12, fontWeight: "bold" },
+                itemStyle: { shadowBlur: 12, shadowColor: "rgba(0,0,0,0.3)" },
+            },
+            gap: 2,
         }],
-        tooltip: { trigger: "item", formatter: "{a} <br/>{b}: {c}" },
+        tooltip: {
+            trigger: "item",
+            formatter: (p: any) => {
+                const total = data.reduce((s: number, d: any) => s + d.value, 0);
+                const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : "0";
+                return `<b>${p.name}</b><br/>${fmtVal(p.value)} <span style="color:#aaa">(${pct}%)</span>${wasClipped ? "<br/><span style='color:#aaa;font-size:10px'>Top 8 shown</span>" : ""}`;
+            },
+        },
+        legend: { show: false }, // legend info is in the right-side labels
     };
 }
+
 
 // ── Scatter ───────────────────────────────────────────────────────────────────
 function buildScatter(meta: any, rows: Record<string, any>[]) {
