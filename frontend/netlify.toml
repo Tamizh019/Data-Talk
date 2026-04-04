@@ -1,2 +1,6 @@
 [build]
   command = "npm run build"
+
+# Required for Next.js App Router to work on Netlify (SSR + redirects)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

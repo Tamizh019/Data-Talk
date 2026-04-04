@@ -1,6 +1,7 @@
 "use client";
 
 import type { VisualizerBlock } from "./ChartRenderer";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface KpiCardProps {
     block: VisualizerBlock;
@@ -21,55 +22,84 @@ export default function KpiCard({ block }: KpiCardProps) {
                 : "KPI";
 
     const value = innerConfig.formatted_value ?? innerConfig.value ?? "—";
-    const delta = innerConfig.delta as string | undefined;
-    const direction = (innerConfig.delta_direction as string) || "neutral";
+    const unit  = innerConfig.unit as string | undefined;
 
-    const deltaColor =
-        direction === "up" ? "#16A34A" : direction === "down" ? "#DC2626" : "var(--color-muted-foreground)";
-    const deltaArrow = direction === "up" ? "↑" : direction === "down" ? "↓" : "—";
+    // Support both old (delta/delta_direction) and new (trend/trend_direction) field names
+    const trendLabel = (innerConfig.trend ?? innerConfig.delta) as string | undefined;
+    const rawDirection = innerConfig.trend_direction ?? innerConfig.delta_direction;
+    const direction = (rawDirection as string) || "neutral";
+
+    const isUp   = direction === "up";
+    const isDown = direction === "down";
+
+    const trendColor  = isUp ? "#16A34A" : isDown ? "#EF4444" : "#6B7280";
+    const trendBg     = isUp ? "rgba(22,163,74,0.10)"  : isDown ? "rgba(239,68,68,0.10)"  : "rgba(107,114,128,0.10)";
+    const trendBorder = isUp ? "rgba(22,163,74,0.25)"  : isDown ? "rgba(239,68,68,0.25)"  : "rgba(107,114,128,0.20)";
 
     return (
         <div
-            className="w-full rounded-xl overflow-hidden shadow-md flex flex-col items-center justify-center py-8 px-6 transition-colors duration-300"
+            className="w-full rounded-xl overflow-hidden flex flex-col items-center justify-center py-8 px-6 transition-all duration-300 group hover:scale-[1.02]"
             style={{
                 background: "var(--glass-bg)",
                 border: "1px solid var(--glass-border)",
-                minHeight: 200,
+                boxShadow: "var(--shadow-md)",
+                minHeight: 180,
+                cursor: "default",
             }}
         >
+            {/* Accent top glow line */}
+            <div
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-1/2 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                style={{ background: "linear-gradient(90deg, transparent, #7C6FFF, transparent)" }}
+            />
+
             {/* Label */}
-            <span className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: "#7C6FFF" }}>
+            <span
+                className="text-[10px] font-bold uppercase tracking-widest mb-3 text-center"
+                style={{ color: "#7C6FFF" }}
+            >
                 {title}
             </span>
 
-            {/* Big Number */}
-            <span
-                className="text-5xl font-extrabold tracking-tight"
-                style={{
-                    background: "linear-gradient(135deg, #7C6FFF, #00C9B1)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                }}
-            >
-                {String(value)}
-            </span>
+            {/* Big Number with unit prefix */}
+            <div className="flex items-baseline gap-1">
+                {unit && (
+                    <span
+                        className="text-2xl font-bold"
+                        style={{ color: "#7C6FFF", opacity: 0.8 }}
+                    >
+                        {unit}
+                    </span>
+                )}
+                <span
+                    className="text-5xl font-extrabold tracking-tight"
+                    style={{
+                        background: "linear-gradient(135deg, #7C6FFF, #00C9B1)",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                    }}
+                >
+                    {String(value)}
+                </span>
+            </div>
 
-            {/* Delta */}
-            {delta && (
+            {/* Trend badge */}
+            {trendLabel && (
                 <div
                     className="flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full"
                     style={{
-                        background: direction === "up" ? "rgba(22,163,74,0.10)" : direction === "down" ? "rgba(220,38,38,0.10)" : "var(--glass-bg-hover)",
-                        border: `1px solid ${direction === "up" ? "rgba(22,163,74,0.25)" : direction === "down" ? "rgba(220,38,38,0.25)" : "var(--glass-border)"}`,
+                        background: trendBg,
+                        border: `1px solid ${trendBorder}`,
                     }}
                 >
-                    <span className="text-lg font-bold" style={{ color: deltaColor }}>{deltaArrow}</span>
-                    <span className="text-sm font-semibold" style={{ color: deltaColor }}>{delta}</span>
+                    {isUp && <TrendingUp  className="w-3.5 h-3.5" style={{ color: trendColor }} />}
+                    {isDown && <TrendingDown className="w-3.5 h-3.5" style={{ color: trendColor }} />}
+                    {!isUp && !isDown && <Minus className="w-3.5 h-3.5" style={{ color: trendColor }} />}
+                    <span className="text-xs font-bold" style={{ color: trendColor }}>
+                        {trendLabel}
+                    </span>
                 </div>
             )}
-
-            {/* Subtitle */}
-            <p className="text-[11px] mt-3 text-muted-foreground font-medium">vs previous period</p>
         </div>
     );
 }
