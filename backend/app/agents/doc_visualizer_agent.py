@@ -2,7 +2,7 @@
 Document Visualizer Agent (Gemini)
 2-phase approach:
   Phase 1: Extract structured, chart-ready data from raw document text.
-  Phase 2: Use structured data to generate 3-4 ECharts dashboard configs.
+  Phase 2: Use structured data to generate 3-5 Plotly dashboard configs.
 """
 import json
 import logging
@@ -60,40 +60,42 @@ ONLY output valid JSON. No explanation, no markdown fences."""
 
 
 VISUALIZER_SYSTEM = """You are an Enterprise Data Visualization Architect for documents.
-Given structured data extracted from a document, generate the BEST 3-4 visual representations.
+Given structured data extracted from a document, generate the BEST 3-5 visual representations.
 
 ## Available Render Libraries & Types
-You MUST return an array of JSON objects. Each object MUST have a `library` and `config` field.
+Return a JSON array of objects. Each object MUST have `library` and `config` fields.
 
-1. ECharts (`"library": "echarts"`)
-   Best for graphs, comparison, timelines.
-   - Types: bar, horizontal_bar, line, area, pie, radar (for skills/stats), treemap (for hierarchies like tech stacks), timeline
-   - Format: `{ "library": "echarts", "chart_type": "radar", "title": "...", "config": { ...echarts_option... } }`
-   - Palette: ["#7C6FFF", "#00C9B1", "#FF6B6B", "#FFD93D", "#6BCB77"]
+1. Plotly Charts (`"library": "plotly"`)
+   Best for graphs, comparison, timelines, distributions.
+   Config MUST have "data" (array of traces) and "layout" (object).
+   - Types: bar, horizontal_bar, line, area, pie, donut, radar (scatterpolar), treemap, sunburst, funnel, histogram, box
+   - Format: `{ "library": "plotly", "chart_type": "bar", "title": "...", "config": { "data": [...], "layout": {...} } }`
+   - Layout template: {"template": "plotly_dark", "paper_bgcolor": "transparent", "plot_bgcolor": "transparent", "font": {"family": "Inter, system-ui, sans-serif", "color": "#94a3b8"}, "margin": {"l": 40, "r": 30, "t": 10, "b": 40}, "colorway": ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1"]}
 
 2. Data Table (`"library": "table"`)
-   Best for a dense list of facts (e.g. chronological work experience, detailed findings).
+   Best for dense lists of facts (work experience, detailed findings).
    - Format: `{ "library": "table", "title": "Job History", "config": { "columns": ["Role", "Company", "Duration"], "data": [["Intern", "Google", "3 Months"], ...] } }`
 
 3. KPI Scorecard (`"library": "kpi"`)
-   Best for a single big metric (e.g. total years experience, overall rating, policy count).
-   - Format: `{ "library": "kpi", "title": "Total Exp", "config": { "value": 5, "formatted_value": "5 Years" } }`
+   Best for a single big metric.
+   - Format: `{ "library": "kpi", "title": "Total Exp", "config": { "value": 5, "formatted_value": "5 Years", "trend_direction": "up" } }`
 
 ## Rules:
-- Mix your libraries! Try to provide 1 KPI, 1 Table, and 2 ECharts.
-- ECharts configs must be self-contained `option` objects (no functions). Background transparent.
+- Mix your libraries! Try to provide 1 KPI, 1 Table, and 2-3 Plotly charts.
+- Plotly configs must be self-contained {data, layout} objects.
 - ALL data must come strictly from the structured payload.
+- NEVER repeat the same chart_type.
 
 ## Response Format (strict JSON array, no fences, no explanation):
 [
-  { "library": "kpi", "title": "Total Projects", "config": { "value": 12, "formatted_value": "12" } },
-  { "library": "echarts", "chart_type": "treemap", "title": "Tech Stack", "config": { ... } },
+  { "library": "kpi", "title": "Total Projects", "config": { "value": 12, "formatted_value": "12", "trend_direction": "neutral" } },
+  { "library": "plotly", "chart_type": "treemap", "title": "Tech Stack", "config": { "data": [{"type": "treemap", "labels": [...], "parents": [...], "values": [...]}], "layout": {"template": "plotly_dark", "paper_bgcolor": "transparent", "plot_bgcolor": "transparent"} } },
   { "library": "table", "title": "Experience", "config": { "columns": [...], "data": [...] } }
 ]"""
 
 
 async def generate_doc_charts(user_query: str, doc_content: str) -> list[dict]:
-    """2-phase: extract structured data → generate 3-4 ECharts configs."""
+    """2-phase: extract structured data → generate 3-5 Plotly configs."""
     try:
         # ── Phase 1: Extract structured data ────────────────────────────────
         extract_prompt = f"""User request: "{user_query}"
@@ -122,13 +124,13 @@ Extract the most chart-worthy structured data as JSON:"""
 
         logger.info(f"[DocVisualizer] Phase 1 extracted doc_type: {structured_data.get('doc_type', 'unknown')}")
 
-        # ── Phase 2: Generate ECharts from structured data ───────────────────
+        # ── Phase 2: Generate Plotly charts from structured data ────────────────
         viz_prompt = f"""User request: "{user_query}"
 
 Structured document data:
 {json.dumps(structured_data, indent=2)}
 
-Generate the best 3-4 ECharts dashboard configs for this data:"""
+Generate the best 3-5 Plotly dashboard configs for this data:"""
 
         viz_response = await _model.generate_content_async(
             f"{VISUALIZER_SYSTEM}\n\n{viz_prompt}",
@@ -180,16 +182,20 @@ Generate the best 3-4 ECharts dashboard configs for this data:"""
 
         # Filter out invalid entries and enforce schema
         valid_charts = []
-        for c in charts[:4]:
+        for c in charts[:5]:
             if not isinstance(c, dict): continue
             
-            # Legacy fallback
-            if "library" not in c and "chart_type" in c:
-                if c["chart_type"] == "kpi_card":
-                    valid_charts.append({ "library": "kpi", "title": c.get("title", "KPI"), "config": c })
-                else:
-                    valid_charts.append({ "library": "echarts", "chart_type": c["chart_type"], "title": c.get("title", "Chart"), "config": {k:v for k,v in c.items() if k not in ("chart_type", "title", "library")} })
-            elif "library" in c and "config" in c:
+            if "library" not in c or "config" not in c:
+                continue
+            if c["library"] == "kpi":
+                valid_charts.append(c)
+            elif c["library"] == "plotly":
+                cfg = c["config"]
+                if isinstance(cfg, dict) and "data" in cfg:
+                    if "layout" not in cfg:
+                        cfg["layout"] = {}
+                    valid_charts.append(c)
+            elif c["library"] == "table":
                 valid_charts.append(c)
 
         if not valid_charts:

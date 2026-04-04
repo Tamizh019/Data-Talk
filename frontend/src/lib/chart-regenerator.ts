@@ -1,35 +1,43 @@
 /**
- * chart-regenerator.ts
- * Rebuilds ECharts option objects from filtered raw rows + chart metadata.
- * This is the engine that powers live cross-filtering without re-querying the backend.
+ * chart-regenerator.ts — Plotly.js Edition
+ * Rebuilds Plotly config objects from filtered raw rows + chart metadata.
+ * Powers live cross-filtering without re-querying the backend.
  */
 import type { VisualizerBlock } from "@/components/ChartRenderer";
 
-export type SupportedType = "bar" | "line" | "area" | "scatter" | "pie" | "donut" | "horizontal_bar" | "stacked_bar" | "radar" | "treemap" | "funnel";
+export type SupportedType =
+    | "bar" | "horizontal_bar" | "grouped_bar" | "stacked_bar"
+    | "line" | "area" | "scatter" | "bubble"
+    | "pie" | "donut" | "sunburst"
+    | "treemap" | "funnel" | "waterfall" | "sankey"
+    | "histogram" | "box" | "violin"
+    | "radar" | "gauge" | "heatmap"
+    | "parallel_coordinates" | "candlestick";
 
-// ECharts brand palette
-const PALETTE = ["#7C6FFF", "#00C9B1", "#F59E0B", "#6366F1", "#EC4899", "#10B981", "#3B82F6", "#F97316"];
+// Brand palette
+const PALETTE = ["#7C6FFF", "#00C9B1", "#FF6B6B", "#FFB347", "#4ECDC4", "#45B7D1", "#96CEB4", "#A855F7", "#F59E0B", "#EC4899"];
 
-// ── Label truncation helper — prevents axis label overlap ─────────────────────
-const MAX_LABEL_LEN = 22;
-function truncateLabel(label: string): string {
-    if (!label || label.length <= MAX_LABEL_LEN) return label;
-    return label.slice(0, MAX_LABEL_LEN - 1).trimEnd() + "…";
-}
-
-function smartAxisLabel(categories: string[], isHorizontal = false) {
-    const maxLen = Math.max(...categories.map(c => c.length));
-    const needsRotation = !isHorizontal && (categories.length > 6 || maxLen > 15);
+// ── Shared layout defaults ────────────────────────────────────────────────────
+function baseLayout(overrides: Record<string, any> = {}): Record<string, any> {
     return {
-        formatter: (value: string) => truncateLabel(value),
-        rotate: needsRotation ? 25 : 0,
-        fontSize: 11,
-        overflow: "truncate" as const,
-        width: isHorizontal ? 120 : 80,
+        template: "plotly_dark",
+        paper_bgcolor: "transparent",
+        plot_bgcolor: "transparent",
+        font: { family: "Inter, system-ui, sans-serif", color: "#94a3b8", size: 12 },
+        margin: { l: 50, r: 30, t: 30, b: 50 },
+        colorway: PALETTE,
+        hoverlabel: { bgcolor: "rgba(13,13,22,0.95)", bordercolor: "rgba(124,111,255,0.3)", font: { color: "#e2e8f0", size: 12 } },
+        xaxis: { gridcolor: "rgba(255,255,255,0.04)", zerolinecolor: "rgba(255,255,255,0.08)" },
+        yaxis: { gridcolor: "rgba(255,255,255,0.04)", zerolinecolor: "rgba(255,255,255,0.08)" },
+        ...overrides,
     };
 }
 
-// ── Main export: regenerate a chart option from filtered rows ──────────────────
+// ── Label truncation ────────────────────────────────────────────────────────
+const MAX_LABEL = 22;
+const truncate = (s: string) => (!s || s.length <= MAX_LABEL ? s : s.slice(0, MAX_LABEL - 1).trimEnd() + "…");
+
+// ── Main export: regenerate a Plotly config from filtered rows ─────────────
 export function regenerateChartOption(
     block: VisualizerBlock,
     filteredRows: Record<string, any>[],
@@ -38,18 +46,26 @@ export function regenerateChartOption(
     const meta = block.meta;
     const chartType = (overrideType || block.chart_type || "bar") as SupportedType;
 
-    // If no meta, fall back to original config (already filtered data can't help)
     if (!meta) return null;
 
     try {
         if (chartType === "pie" || chartType === "donut") return buildPie(meta, filteredRows, chartType);
+        if (chartType === "sunburst") return buildSunburst(meta, filteredRows);
         if (chartType === "radar") return buildRadar(meta, filteredRows);
         if (chartType === "scatter") return buildScatter(meta, filteredRows);
+        if (chartType === "bubble") return buildBubble(meta, filteredRows);
         if (chartType === "horizontal_bar") return buildHorizontalBar(meta, filteredRows);
-        if (chartType === "stacked_bar") return buildStackedBar(meta, filteredRows, "bar");
+        if (chartType === "grouped_bar") return buildGroupedBar(meta, filteredRows, "group");
+        if (chartType === "stacked_bar") return buildGroupedBar(meta, filteredRows, "stack");
         if (chartType === "treemap") return buildTreemap(meta, filteredRows);
         if (chartType === "funnel") return buildFunnel(meta, filteredRows);
-        // Default: bar / line / area share the same structure
+        if (chartType === "waterfall") return buildWaterfall(meta, filteredRows);
+        if (chartType === "histogram") return buildHistogram(meta, filteredRows);
+        if (chartType === "box") return buildBox(meta, filteredRows);
+        if (chartType === "violin") return buildViolin(meta, filteredRows);
+        if (chartType === "heatmap") return buildHeatmap(meta, filteredRows);
+        if (chartType === "gauge") return buildGauge(meta, filteredRows);
+        // Default: bar / line / area
         return buildXY(meta, filteredRows, chartType);
     } catch (e) {
         console.warn("[ChartRegen] Failed:", e);
@@ -57,64 +73,50 @@ export function regenerateChartOption(
     }
 }
 
-// ── X/Y Charts: bar, line, area ───────────────────────────────────────────────
+// ── Bar / Line / Area ─────────────────────────────────────────────────────────
 function buildXY(meta: any, rows: Record<string, any>[], type: string) {
     const xCol: string = meta.x_col;
     const yCols: string[] = meta.y_cols || [];
 
     let categories = [...new Set(rows.map(r => String(r[xCol] ?? "")))];
-    let isTruncated = false;
-
-    // Truncate Bar charts with too many categories
+    let _truncated = false;
     if (type === "bar" && categories.length > 15) {
-        const catSums = categories.map(cat => {
-            const sum = yCols.reduce((acc, yCol) => {
-                const matching = rows.filter(r => String(r[xCol] ?? "") === cat);
-                return acc + aggregate(matching, yCol, meta.agg || "sum");
-            }, 0);
-            return { cat, sum };
-        });
+        const catSums = categories.map(cat => ({
+            cat,
+            sum: yCols.reduce((acc, yCol) => acc + aggregate(rows.filter(r => String(r[xCol] ?? "") === cat), yCol, meta.agg || "sum"), 0),
+        }));
         catSums.sort((a, b) => b.sum - a.sum);
         categories = catSums.slice(0, 15).map(c => c.cat);
-        isTruncated = true;
+        _truncated = true;
     }
 
-    const series = yCols.map((yCol, idx) => ({
-        name: yCol,
-        type: type === "area" ? "line" : type,
-        smooth: type === "line" || type === "area",
-        areaStyle: type === "area" ? { opacity: 0.25 } : undefined,
-        data: categories.map(cat => {
-            const matching = rows.filter(r => String(r[xCol] ?? "") === cat);
-            return aggregate(matching, yCol, meta.agg || "sum");
+    const isLine = type === "line" || type === "area";
+    const traces = yCols.map((yCol, idx) => {
+        const yData = categories.map(cat => aggregate(rows.filter(r => String(r[xCol] ?? "") === cat), yCol, meta.agg || "sum"));
+        return {
+            type: isLine ? "scatter" : "bar",
+            name: yCol,
+            x: categories.map(truncate),
+            y: yData,
+            ...(isLine ? {
+                mode: "lines+markers" as const,
+                line: { shape: "spline", width: 3, color: PALETTE[idx % PALETTE.length] },
+                marker: { size: 6, color: PALETTE[idx % PALETTE.length] },
+            } : {
+                marker: { color: PALETTE[idx % PALETTE.length], line: { width: 0 } },
+            }),
+            ...(type === "area" ? { fill: "tozeroy", fillcolor: `${PALETTE[idx % PALETTE.length]}20` } : {}),
+        };
+    });
+
+    return {
+        _truncated,
+        data: traces,
+        layout: baseLayout({
+            showlegend: yCols.length > 1,
+            legend: { orientation: "h", yanchor: "bottom", y: 1.05 },
         }),
-        itemStyle: { color: PALETTE[idx % PALETTE.length] },
-    }));
-
-    const opt: any = {
-        _truncated: isTruncated,
-        xAxis: {
-            type: "category",
-            data: categories,
-            axisLabel: smartAxisLabel(categories),
-            axisTick: { alignWithLabel: true },
-        },
-        yAxis: { type: "value" },
-        series,
-        legend: yCols.length > 1 ? { show: true } : { show: false },
-        tooltip: { trigger: "axis" },
     };
-
-    // Data Zoom for Time Series
-    if ((type === "line" || type === "area") && categories.length > 25) {
-        opt.dataZoom = [
-            { type: "inside", start: 0, end: Math.max(10, Math.floor(2500 / categories.length)) },
-            { type: "slider", start: 0, end: Math.max(10, Math.floor(2500 / categories.length)), bottom: 5, height: 16 }
-        ];
-        opt.grid = { bottom: 50, left: 20, right: 20, containLabel: true };
-    }
-
-    return opt;
 }
 
 // ── Horizontal Bar ────────────────────────────────────────────────────────────
@@ -122,111 +124,256 @@ function buildHorizontalBar(meta: any, rows: Record<string, any>[]) {
     const xCol = meta.x_col || meta.category_col;
     const yCol = (meta.y_cols || [])[0] || meta.value_col;
     let categories = [...new Set(rows.map(r => String(r[xCol] ?? "")))];
-    let isTruncated = false;
+    let _truncated = false;
 
     if (categories.length > 15) {
-        const catSums = categories.map(cat => {
-            const matching = rows.filter(r => String(r[xCol] ?? "") === cat);
-            return { cat, sum: aggregate(matching, yCol, meta.agg || "sum") };
-        });
+        const catSums = categories.map(cat => ({
+            cat,
+            sum: aggregate(rows.filter(r => String(r[xCol] ?? "") === cat), yCol, meta.agg || "sum"),
+        }));
         catSums.sort((a, b) => b.sum - a.sum);
-        categories = catSums.slice(0, 15).reverse().map(c => c.cat); // reverse for bottom-up rendering
-        isTruncated = true;
+        categories = catSums.slice(0, 15).reverse().map(c => c.cat);
+        _truncated = true;
     }
 
+    const values = categories.map(cat => aggregate(rows.filter(r => String(r[xCol] ?? "") === cat), yCol, meta.agg || "sum"));
+
     return {
-        _truncated: isTruncated,
-        yAxis: {
-            type: "category",
-            data: categories,
-            axisLabel: smartAxisLabel(categories, true),
-        },
-        xAxis: { type: "value" },
-        series: [{
+        _truncated,
+        data: [{
             type: "bar",
-            data: categories.map(cat => {
-                const matching = rows.filter(r => String(r[xCol] ?? "") === cat);
-                return aggregate(matching, yCol, meta.agg || "sum");
-            }),
-            itemStyle: { color: PALETTE[0] },
+            x: values,
+            y: categories.map(truncate),
+            orientation: "h",
+            marker: { color: PALETTE[0], line: { width: 0 } },
+            text: values.map(v => fmtVal(v)),
+            textposition: "auto",
         }],
-        grid: { left: 10, right: 30, top: 15, bottom: 20, containLabel: true },
-        tooltip: {
-            trigger: "axis",
-            formatter: (params: any) => {
-                if (!Array.isArray(params)) params = [params];
-                const cat = params[0]?.name ?? "";
-                const val = params[0]?.value ?? "";
-                return `<b>${cat}</b><br/>${val}`;
-            },
-        },
+        layout: baseLayout({ margin: { l: 120, r: 30, t: 20, b: 40 } }),
     };
 }
 
-// ── Stacked Bar ───────────────────────────────────────────────────────────────
-function buildStackedBar(meta: any, rows: Record<string, any>[], chartType = "bar") {
+// ── Grouped / Stacked Bar ─────────────────────────────────────────────────────
+function buildGroupedBar(meta: any, rows: Record<string, any>[], barmode: "group" | "stack") {
     const xCol = meta.x_col;
     const groupCol = meta.group_col;
     const yCol = (meta.y_cols || [])[0] || meta.value_col;
-
     const categories = [...new Set(rows.map(r => String(r[xCol] ?? "")))];
 
-    if (!groupCol) return buildXY(meta, rows, chartType); // fall back
+    if (!groupCol) return buildXY(meta, rows, "bar");
 
     const groups = [...new Set(rows.map(r => String(r[groupCol] ?? "")))];
-    const series = groups.map((g, idx) => ({
+    const traces = groups.map((g, idx) => ({
+        type: "bar" as const,
         name: g,
-        type: "bar",
-        stack: "total",
-        data: categories.map(cat => {
-            const matching = rows.filter(r => String(r[xCol] ?? "") === cat && String(r[groupCol] ?? "") === g);
-            return aggregate(matching, yCol, meta.agg || "count");
-        }),
-        itemStyle: { color: PALETTE[idx % PALETTE.length] },
+        x: categories.map(truncate),
+        y: categories.map(cat => aggregate(rows.filter(r => String(r[xCol] ?? "") === cat && String(r[groupCol] ?? "") === g), yCol, meta.agg || "count")),
+        marker: { color: PALETTE[idx % PALETTE.length] },
     }));
 
-    return {
-        xAxis: { type: "category", data: categories },
-        yAxis: { type: "value" },
-        series,
-        legend: { show: true },
-        tooltip: { trigger: "axis" },
-    };
+    return { data: traces, layout: baseLayout({ barmode, showlegend: true }) };
 }
 
 // ── Pie / Donut ───────────────────────────────────────────────────────────────
 function buildPie(meta: any, rows: Record<string, any>[], type: string) {
     const catCol = meta.category_col || meta.x_col;
     const valCol = meta.value_col || (meta.y_cols || [])[0];
-
     const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))];
     let data = groups.map(g => ({
-        name: g,
+        label: g,
         value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "count"),
     }));
 
-    let isTruncated = false;
-    if (groups.length > 15) {
+    if (data.length > 8) {
         data.sort((a, b) => b.value - a.value);
-        let top15 = data.slice(0, 15);
-        let othersSum = data.slice(15).reduce((acc, curr) => acc + curr.value, 0);
-        if (othersSum > 0) top15.push({ name: "Other", value: othersSum });
-        data = top15;
-        isTruncated = true;
+        const top = data.slice(0, 7);
+        const otherSum = data.slice(7).reduce((s, d) => s + d.value, 0);
+        if (otherSum > 0) top.push({ label: "Others", value: otherSum });
+        data = top;
     }
 
     return {
-        _truncated: isTruncated,
-        series: [{
+        data: [{
             type: "pie",
-            radius: type === "donut" ? ["40%", "70%"] : "65%",
-            data,
-            label: { formatter: "{b}: {d}%" },
-            emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: "rgba(0,0,0,0.3)" } },
+            labels: data.map(d => d.label),
+            values: data.map(d => d.value),
+            hole: type === "donut" ? 0.45 : 0,
+            marker: { colors: PALETTE },
+            textinfo: "label+percent",
+            textposition: "auto",
+            hoverinfo: "label+value+percent",
         }],
-        tooltip: { trigger: "item", formatter: "{a} <br>{b}: {c} ({d}%)" },
-        legend: { orient: "vertical", right: 10, top: "center", type: "scroll" },
-        color: PALETTE,
+        layout: baseLayout({
+            showlegend: true,
+            legend: { orientation: "h", yanchor: "bottom", y: -0.25, font: { size: 11 } },
+            margin: { l: 20, r: 20, t: 20, b: 60 },
+        }),
+    };
+}
+
+// ── Sunburst ──────────────────────────────────────────────────────────────────
+function buildSunburst(meta: any, rows: Record<string, any>[]) {
+    const catCol = meta.category_col || meta.x_col;
+    const valCol = meta.value_col || (meta.y_cols || [])[0];
+    const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
+    const data = groups.map(g => ({
+        label: g,
+        value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "count"),
+    })).filter(d => d.value > 0).slice(0, 30);
+
+    return {
+        data: [{
+            type: "sunburst",
+            labels: ["Total", ...data.map(d => d.label)],
+            parents: ["", ...data.map(() => "Total")],
+            values: [data.reduce((s, d) => s + d.value, 0), ...data.map(d => d.value)],
+            branchvalues: "total",
+            marker: { colors: ["transparent", ...PALETTE] },
+        }],
+        layout: baseLayout({ margin: { l: 10, r: 10, t: 10, b: 10 } }),
+    };
+}
+
+// ── Treemap ───────────────────────────────────────────────────────────────────
+function buildTreemap(meta: any, rows: Record<string, any>[]) {
+    const catCol = meta.category_col || meta.x_col;
+    const valCol = meta.value_col || (meta.y_cols || [])[0];
+    const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
+    const all = groups.map(g => ({
+        label: g,
+        value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
+    })).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
+
+    const data = all.slice(0, 25);
+    if (all.length > 25) {
+        const otherVal = all.slice(25).reduce((s, d) => s + d.value, 0);
+        if (otherVal > 0) data.push({ label: "Others", value: otherVal });
+    }
+
+    return {
+        data: [{
+            type: "treemap",
+            labels: ["Root", ...data.map(d => d.label)],
+            parents: ["", ...data.map(() => "Root")],
+            values: [0, ...data.map(d => d.value)],
+            textinfo: "label+value+percent root",
+            marker: { colors: ["transparent", ...PALETTE.slice(0, data.length)] },
+            pathbar: { visible: true },
+        }],
+        layout: baseLayout({ margin: { l: 5, r: 5, t: 5, b: 5 } }),
+    };
+}
+
+// ── Funnel ────────────────────────────────────────────────────────────────────
+function buildFunnel(meta: any, rows: Record<string, any>[]) {
+    const catCol = meta.category_col || meta.x_col;
+    const valCol = meta.value_col || (meta.y_cols || [])[0];
+    const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
+    const all = groups.map(g => ({
+        label: g,
+        value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
+    })).filter(d => d.value > 0).sort((a, b) => b.value - a.value).slice(0, 8);
+
+    return {
+        data: [{
+            type: "funnel",
+            y: all.map(d => truncate(d.label)),
+            x: all.map(d => d.value),
+            textinfo: "value+percent initial",
+            marker: { color: PALETTE.slice(0, all.length) },
+        }],
+        layout: baseLayout({ margin: { l: 120, r: 30, t: 20, b: 30 } }),
+    };
+}
+
+// ── Waterfall ─────────────────────────────────────────────────────────────────
+function buildWaterfall(meta: any, rows: Record<string, any>[]) {
+    const xCol = meta.x_col || meta.category_col;
+    const yCol = (meta.y_cols || [])[0] || meta.value_col;
+    const categories = [...new Set(rows.map(r => String(r[xCol] ?? "")))].slice(0, 15);
+    const values = categories.map(cat => aggregate(rows.filter(r => String(r[xCol] ?? "") === cat), yCol, meta.agg || "sum"));
+    const measures = values.map((_, i) => i === values.length - 1 ? "total" : i === 0 ? "absolute" : "relative");
+
+    return {
+        data: [{
+            type: "waterfall",
+            x: categories.map(truncate),
+            y: values,
+            measure: measures,
+            connector: { line: { color: "rgba(124,111,255,0.3)" } },
+            increasing: { marker: { color: "#00C9B1" } },
+            decreasing: { marker: { color: "#FF6B6B" } },
+            totals: { marker: { color: "#7C6FFF" } },
+        }],
+        layout: baseLayout(),
+    };
+}
+
+// ── Scatter ───────────────────────────────────────────────────────────────────
+function buildScatter(meta: any, rows: Record<string, any>[]) {
+    const xCol = meta.x_col;
+    const yCol = (meta.y_cols || [])[0];
+    const groupCol = meta.group_col;
+    const sampleRows = rows.slice(0, 100);
+
+    if (groupCol) {
+        const groups = [...new Set(sampleRows.map(r => String(r[groupCol] ?? "")))];
+        return {
+            data: groups.map((g, idx) => ({
+                type: "scatter",
+                mode: "markers",
+                name: g,
+                x: sampleRows.filter(r => String(r[groupCol] ?? "") === g).map(r => Number(r[xCol])),
+                y: sampleRows.filter(r => String(r[groupCol] ?? "") === g).map(r => Number(r[yCol])),
+                marker: { size: 10, color: PALETTE[idx % PALETTE.length], opacity: 0.7 },
+            })),
+            layout: baseLayout({
+                showlegend: true,
+                xaxis: { title: xCol, gridcolor: "rgba(255,255,255,0.04)" },
+                yaxis: { title: yCol, gridcolor: "rgba(255,255,255,0.04)" },
+            }),
+        };
+    }
+
+    return {
+        data: [{
+            type: "scatter",
+            mode: "markers",
+            x: sampleRows.map(r => Number(r[xCol])),
+            y: sampleRows.map(r => Number(r[yCol])),
+            marker: { size: 10, color: PALETTE[0], opacity: 0.7 },
+        }],
+        layout: baseLayout({
+            xaxis: { title: xCol, gridcolor: "rgba(255,255,255,0.04)" },
+            yaxis: { title: yCol, gridcolor: "rgba(255,255,255,0.04)" },
+        }),
+    };
+}
+
+// ── Bubble ────────────────────────────────────────────────────────────────────
+function buildBubble(meta: any, rows: Record<string, any>[]) {
+    const xCol = meta.x_col;
+    const yCols: string[] = meta.y_cols || [];
+    const yCol = yCols[0];
+    const sizeCol = yCols[1] || yCol;
+    const sampleRows = rows.slice(0, 100);
+
+    const sizes = sampleRows.map(r => Math.abs(Number(r[sizeCol] ?? 1)));
+    const maxSize = Math.max(...sizes, 1);
+
+    return {
+        data: [{
+            type: "scatter",
+            mode: "markers",
+            x: sampleRows.map(r => Number(r[xCol])),
+            y: sampleRows.map(r => Number(r[yCol])),
+            marker: { size: sizes.map(s => (s / maxSize) * 40 + 5), color: PALETTE[0], opacity: 0.6, line: { width: 1, color: "rgba(255,255,255,0.3)" } },
+            text: sampleRows.map(r => `${r[xCol]}, ${r[yCol]}`),
+        }],
+        layout: baseLayout({
+            xaxis: { title: xCol, gridcolor: "rgba(255,255,255,0.04)" },
+            yaxis: { title: yCol, gridcolor: "rgba(255,255,255,0.04)" },
+        }),
     };
 }
 
@@ -237,214 +384,173 @@ function buildRadar(meta: any, rows: Record<string, any>[]) {
 
     if (groupCol) {
         const groups = [...new Set(rows.map(r => String(r[groupCol] ?? "")))];
-        const indicators = yCols.map(col => {
-            const vals = rows.map(r => Number(r[col] ?? 0)).filter(n => !isNaN(n));
-            return { name: col, max: Math.max(...vals) * 1.2 };
-        });
-        const series = [{
-            type: "radar",
-            data: groups.map((g, gi) => ({
-                name: g,
-                value: yCols.map(col => {
-                    const matching = rows.filter(r => String(r[groupCol] ?? "") === g);
-                    return aggregate(matching, col, meta.agg || "avg");
-                }),
-                itemStyle: { color: PALETTE[gi % PALETTE.length] },
-            })),
-        }];
-        return { radar: { indicator: indicators }, series, legend: { show: true }, tooltip: {} };
-    }
-
-    const indicators = yCols.map(col => {
-        const vals = rows.map(r => Number(r[col] ?? 0)).filter(n => !isNaN(n));
-        return { name: col, max: Math.max(...vals) * 1.2 };
-    });
-
-    return {
-        radar: { indicator: indicators },
-        series: [{
-            type: "radar",
-            data: [{ name: "Values", value: yCols.map(col => aggregate(rows, col, "avg")) }],
-        }],
-        tooltip: {},
-    };
-}
-
-// ── Value formatter helper ────────────────────────────────────────────────────
-function fmtVal(n: number): string {
-    if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-    if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1) + "K";
-    return String(n);
-}
-
-// ── Treemap ────────────────────────────────────────────────────────────────────
-function buildTreemap(meta: any, rows: Record<string, any>[]) {
-    const catCol = meta.category_col || meta.x_col;
-    const valCol = meta.value_col || (meta.y_cols || [])[0];
-
-    const MAX_ITEMS = 20; // More than 20 tiles = unreadable
-
-    const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
-    // NOTE: No per-item itemStyle — ECharts treemap assigns palette colors automatically.
-    // Adding itemStyle per node causes an internal 'push' crash in ECharts' SeriesData.
-    const all = groups.map(g => ({
-        name: g,
-        value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
-    })).filter(d => d.value > 0)
-      .sort((a, b) => b.value - a.value);
-
-    // Cap to top N, group rest into "Others"
-    let data = all.slice(0, MAX_ITEMS);
-    if (all.length > MAX_ITEMS) {
-        const othersVal = all.slice(MAX_ITEMS).reduce((s, d) => s + d.value, 0);
-        if (othersVal > 0) data.push({ name: "Others", value: othersVal });
-    }
-
-    return {
-        color: PALETTE,
-        series: [{
-            type: "treemap",
-            width: "100%",
-            height: "100%",
-            data,
-            leafDepth: 1,
-            // roam: scroll to zoom, click to drill down
-            roam: true,
-            zoom: 1,
-            scaleLimit: { min: 0.5, max: 4 },
-            breadcrumb: { show: true, height: 22, itemStyle: { color: "rgba(124,111,255,0.15)", borderColor: "rgba(124,111,255,0.4)" } },
-            label: {
-                show: true,
-                // Only show label when tile is big enough
-                formatter: (p: any) => {
-                    const name = String(p.name || "");
-                    const short = name.length > 14 ? name.slice(0, 13) + "…" : name;
-                    return `${short}\n${fmtVal(p.value)}`;
-                },
-                fontSize: 11,
-                fontWeight: "bold",
-                color: "#fff",
-                overflow: "truncate",
-            },
-            upperLabel: { show: true, height: 20, fontSize: 11, fontWeight: "bold", color: "#fff" },
-            itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.25)", gapWidth: 2 },
-            emphasis: {
-                label: { fontSize: 13 },
-                itemStyle: { shadowBlur: 16, shadowColor: "rgba(0,0,0,0.4)" },
-            },
-            levels: [
-                { itemStyle: { borderWidth: 3, borderColor: "rgba(255,255,255,0.4)", gapWidth: 3 } },
-                { itemStyle: { borderWidth: 2, borderColor: "rgba(255,255,255,0.25)", gapWidth: 2 } },
-            ],
-            visibleMin: 300, // Hide labels on tiles smaller than 300px²
-        }],
-        tooltip: {
-            trigger: "item",
-            formatter: (info: any) => {
-                const total = data.reduce((s: number, d: any) => s + d.value, 0);
-                const pct = total > 0 ? ((info.value / total) * 100).toFixed(1) : "0";
-                return `<b>${info.name}</b><br/>${fmtVal(info.value)} <span style="color:#aaa">(${pct}%)</span>`;
-            },
-        },
-    };
-}
-
-// ── Funnel ────────────────────────────────────────────────────────────────────
-function buildFunnel(meta: any, rows: Record<string, any>[]) {
-    const catCol = meta.category_col || meta.x_col;
-    const valCol = meta.value_col || (meta.y_cols || [])[0];
-
-    const MAX_STAGES = 8; // More than 8 funnel stages = impossible to read
-
-    const groups = [...new Set(rows.map(r => String(r[catCol] ?? "")))].filter(Boolean);
-    const all = groups.map((g, i) => ({
-        name: g,
-        value: aggregate(rows.filter(r => String(r[catCol] ?? "") === g), valCol, meta.agg || "sum"),
-        itemStyle: { color: PALETTE[i % PALETTE.length] },
-    })).filter(d => d.value > 0)
-      .sort((a, b) => b.value - a.value);
-
-    const data = all.slice(0, MAX_STAGES);
-    const wasClipped = all.length > MAX_STAGES;
-
-    return {
-        series: [{
-            type: "funnel",
-            width: "55%",
-            left: "5%",
-            top: 10,
-            bottom: 10,
-            data,
-            // Labels on the right side prevent the claustrophobic overlap inside narrow slices
-            label: {
-                show: true,
-                position: "right",
-                formatter: (p: any) => {
-                    const name = String(p.name || "");
-                    const short = name.length > 16 ? name.slice(0, 15) + "…" : name;
-                    return `${short}: ${fmtVal(p.value)}`;
-                },
-                fontSize: 11,
-                color: "inherit",
-            },
-            labelLine: { show: true, length: 10, lineStyle: { width: 1 } },
-            itemStyle: { borderWidth: 1, borderColor: "rgba(255,255,255,0.4)" },
-            emphasis: {
-                label: { fontSize: 12, fontWeight: "bold" },
-                itemStyle: { shadowBlur: 12, shadowColor: "rgba(0,0,0,0.3)" },
-            },
-            gap: 2,
-        }],
-        tooltip: {
-            trigger: "item",
-            formatter: (p: any) => {
-                const total = data.reduce((s: number, d: any) => s + d.value, 0);
-                const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : "0";
-                return `<b>${p.name}</b><br/>${fmtVal(p.value)} <span style="color:#aaa">(${pct}%)</span>${wasClipped ? "<br/><span style='color:#aaa;font-size:10px'>Top 8 shown</span>" : ""}`;
-            },
-        },
-        legend: { show: false }, // legend info is in the right-side labels
-    };
-}
-
-
-// ── Scatter ───────────────────────────────────────────────────────────────────
-function buildScatter(meta: any, rows: Record<string, any>[]) {
-    const xCol = meta.x_col;
-    const yCol = (meta.y_cols || [])[0];
-    const groupCol = meta.group_col;
-
-    if (groupCol) {
-        const groups = [...new Set(rows.map(r => String(r[groupCol] ?? "")))];
         return {
-            xAxis: { type: "value", name: xCol },
-            yAxis: { type: "value", name: yCol },
-            series: groups.map((g, idx) => ({
+            data: groups.map((g, idx) => ({
+                type: "scatterpolar",
+                r: yCols.map(col => aggregate(rows.filter(r => String(r[groupCol] ?? "") === g), col, meta.agg || "avg")),
+                theta: yCols,
+                fill: "toself",
                 name: g,
-                type: "scatter",
-                data: rows.filter(r => String(r[groupCol] ?? "") === g).map(r => [Number(r[xCol]), Number(r[yCol])]),
-                itemStyle: { color: PALETTE[idx % PALETTE.length] },
+                marker: { color: PALETTE[idx % PALETTE.length] },
             })),
-            legend: { show: true },
-            tooltip: { trigger: "item" },
+            layout: baseLayout({
+                polar: { radialaxis: { visible: true, gridcolor: "rgba(255,255,255,0.08)" }, angularaxis: { gridcolor: "rgba(255,255,255,0.08)" } },
+                showlegend: true,
+            }),
         };
     }
 
     return {
-        xAxis: { type: "value", name: truncateLabel(xCol) },
-        yAxis: { type: "value", name: truncateLabel(yCol) },
-        series: [{
-            type: "scatter",
-            data: rows.map(r => [Number(r[xCol]), Number(r[yCol])]),
-            itemStyle: { color: PALETTE[0] },
+        data: [{
+            type: "scatterpolar",
+            r: yCols.map(col => aggregate(rows, col, "avg")),
+            theta: yCols,
+            fill: "toself",
+            marker: { color: PALETTE[0] },
         }],
-        tooltip: { trigger: "item" },
+        layout: baseLayout({
+            polar: { radialaxis: { visible: true, gridcolor: "rgba(255,255,255,0.08)" } },
+        }),
+    };
+}
+
+// ── Histogram ─────────────────────────────────────────────────────────────────
+function buildHistogram(meta: any, rows: Record<string, any>[]) {
+    const xCol = meta.x_col || (meta.y_cols || [])[0];
+    return {
+        data: [{
+            type: "histogram",
+            x: rows.map(r => Number(r[xCol])).filter(n => !isNaN(n)),
+            nbinsx: 20,
+            marker: { color: PALETTE[0], line: { color: "rgba(255,255,255,0.2)", width: 1 } },
+        }],
+        layout: baseLayout({ xaxis: { title: xCol }, bargap: 0.05 }),
+    };
+}
+
+// ── Box ───────────────────────────────────────────────────────────────────────
+function buildBox(meta: any, rows: Record<string, any>[]) {
+    const yCols: string[] = meta.y_cols || [meta.x_col];
+    const groupCol = meta.group_col || meta.x_col;
+
+    if (groupCol && groupCol !== yCols[0]) {
+        const groups = [...new Set(rows.map(r => String(r[groupCol] ?? "")))].slice(0, 10);
+        return {
+            data: groups.map((g, idx) => ({
+                type: "box",
+                y: rows.filter(r => String(r[groupCol] ?? "") === g).map(r => Number(r[yCols[0]])).filter(n => !isNaN(n)),
+                name: truncate(g),
+                marker: { color: PALETTE[idx % PALETTE.length] },
+                boxpoints: "outliers",
+            })),
+            layout: baseLayout({ showlegend: false }),
+        };
+    }
+
+    return {
+        data: yCols.map((col, idx) => ({
+            type: "box",
+            y: rows.map(r => Number(r[col])).filter(n => !isNaN(n)),
+            name: col,
+            marker: { color: PALETTE[idx % PALETTE.length] },
+            boxpoints: "outliers",
+        })),
+        layout: baseLayout(),
+    };
+}
+
+// ── Violin ────────────────────────────────────────────────────────────────────
+function buildViolin(meta: any, rows: Record<string, any>[]) {
+    const yCols: string[] = meta.y_cols || [meta.x_col];
+    const groupCol = meta.group_col || meta.x_col;
+
+    if (groupCol && groupCol !== yCols[0]) {
+        const groups = [...new Set(rows.map(r => String(r[groupCol] ?? "")))].slice(0, 10);
+        return {
+            data: groups.map((g, idx) => ({
+                type: "violin",
+                y: rows.filter(r => String(r[groupCol] ?? "") === g).map(r => Number(r[yCols[0]])).filter(n => !isNaN(n)),
+                name: truncate(g),
+                box: { visible: true },
+                meanline: { visible: true },
+                fillcolor: `${PALETTE[idx % PALETTE.length]}40`,
+                line: { color: PALETTE[idx % PALETTE.length] },
+            })),
+            layout: baseLayout({ showlegend: false }),
+        };
+    }
+
+    return {
+        data: yCols.map((col, idx) => ({
+            type: "violin",
+            y: rows.map(r => Number(r[col])).filter(n => !isNaN(n)),
+            name: col,
+            box: { visible: true },
+            meanline: { visible: true },
+            fillcolor: `${PALETTE[idx % PALETTE.length]}40`,
+            line: { color: PALETTE[idx % PALETTE.length] },
+        })),
+        layout: baseLayout(),
+    };
+}
+
+// ── Heatmap ───────────────────────────────────────────────────────────────────
+function buildHeatmap(meta: any, rows: Record<string, any>[]) {
+    const xCol = meta.x_col;
+    const groupCol = meta.group_col || (meta.y_cols || [])[0];
+    const yCol = (meta.y_cols || [])[0] || meta.value_col;
+
+    if (!groupCol) return buildXY(meta, rows, "bar");
+
+    const xCats = [...new Set(rows.map(r => String(r[xCol] ?? "")))].slice(0, 15);
+    const yCats = [...new Set(rows.map(r => String(r[groupCol] ?? "")))].slice(0, 15);
+
+    const z = yCats.map(yc =>
+        xCats.map(xc => aggregate(rows.filter(r => String(r[xCol] ?? "") === xc && String(r[groupCol] ?? "") === yc), yCol, meta.agg || "sum"))
+    );
+
+    return {
+        data: [{
+            type: "heatmap",
+            x: xCats.map(truncate),
+            y: yCats.map(truncate),
+            z,
+            colorscale: [[0, "#0d0d16"], [0.5, "#7C6FFF"], [1, "#00C9B1"]],
+            showscale: true,
+        }],
+        layout: baseLayout({ margin: { l: 100, r: 30, t: 20, b: 60 } }),
+    };
+}
+
+// ── Gauge ─────────────────────────────────────────────────────────────────────
+function buildGauge(meta: any, rows: Record<string, any>[]) {
+    const yCol = (meta.y_cols || [])[0];
+    const values = rows.map(r => Number(r[yCol])).filter(n => !isNaN(n));
+    const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+    const max = values.length > 0 ? Math.max(...values) : 100;
+
+    return {
+        data: [{
+            type: "indicator",
+            mode: "gauge+number",
+            value: Math.round(avg * 100) / 100,
+            gauge: {
+                axis: { range: [0, max * 1.2] },
+                bar: { color: "#7C6FFF" },
+                steps: [
+                    { range: [0, max * 0.33], color: "rgba(124,111,255,0.08)" },
+                    { range: [max * 0.33, max * 0.66], color: "rgba(124,111,255,0.15)" },
+                    { range: [max * 0.66, max * 1.2], color: "rgba(124,111,255,0.25)" },
+                ],
+            },
+        }],
+        layout: baseLayout({ margin: { l: 30, r: 30, t: 30, b: 10 } }),
     };
 }
 
 // ── Aggregation Helper ────────────────────────────────────────────────────────
 function aggregate(rows: Record<string, any>[], col: string, agg: string): number {
-    if (!col || rows.length === 0) return rows.length; // fallback = count
+    if (!col || rows.length === 0) return rows.length;
     if (agg === "count") return rows.length;
     const nums = rows.map(r => Number(r[col] ?? 0)).filter(n => !isNaN(n));
     if (nums.length === 0) return 0;
@@ -452,23 +558,25 @@ function aggregate(rows: Record<string, any>[], col: string, agg: string): numbe
     if (agg === "avg") return parseFloat((nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2));
     if (agg === "max") return Math.max(...nums);
     if (agg === "min") return Math.min(...nums);
-    return nums[0]; // none/first
+    return nums[0];
 }
 
-// ── Chart type groups (for the switcher) ─────────────────────────────────────
-export const AXIS_TYPES: SupportedType[] = ["bar", "line", "area", "horizontal_bar", "scatter", "stacked_bar", "radar"];
-export const PIE_TYPES: SupportedType[] = ["pie", "donut"];
+function fmtVal(n: number): string {
+    if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+    if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1) + "K";
+    return String(Math.round(n * 100) / 100);
+}
+
+// ── Chart type groups ─────────────────────────────────────────────────────────
+export const AXIS_TYPES: SupportedType[] = ["bar", "horizontal_bar", "grouped_bar", "stacked_bar", "line", "area", "scatter", "bubble", "waterfall", "histogram", "box", "violin"];
+export const PIE_TYPES: SupportedType[] = ["pie", "donut", "sunburst"];
 export const HIERARCHY_TYPES: SupportedType[] = ["treemap", "funnel"];
-export const ALL_TYPES: SupportedType[] = [...AXIS_TYPES, ...PIE_TYPES, ...HIERARCHY_TYPES];
+export const SPECIAL_TYPES: SupportedType[] = ["heatmap", "radar", "gauge"];
+export const ALL_TYPES: SupportedType[] = [...AXIS_TYPES, ...PIE_TYPES, ...HIERARCHY_TYPES, ...SPECIAL_TYPES];
 
 export function getCompatibleTypes(currentType: string): SupportedType[] {
     if (PIE_TYPES.includes(currentType as SupportedType)) return PIE_TYPES;
     if (HIERARCHY_TYPES.includes(currentType as SupportedType)) return HIERARCHY_TYPES;
+    if (SPECIAL_TYPES.includes(currentType as SupportedType)) return SPECIAL_TYPES;
     return AXIS_TYPES;
 }
-
-export const TYPE_ICONS: Record<string, string> = {
-    bar: "bar2", line: "line", area: "area", scatter: "scatter",
-    pie: "pie", donut: "donut", horizontal_bar: "hbar",
-    stacked_bar: "stack", radar: "radar", treemap: "treemap", funnel: "funnel",
-};

@@ -1,8 +1,9 @@
 """
-Visualizer Agent (Gemini Pro)
-Smart dashboard generator — intelligently selects 1-8 visualizations
-based on the data shape from 15+ available chart types.
-Each chart includes `meta` column mappings for live frontend cross-filtering.
+Visualizer Agent (Gemini Pro) — Plotly.js Edition
+Two-phase approach:
+  Phase 1: Programmatic data pattern detection (no LLM cost)
+  Phase 2: Gemini generates 4-7 Plotly chart configs matched to detected patterns
+Supports 20+ chart types with smart, data-driven selection.
 """
 import json
 import logging
@@ -15,162 +16,248 @@ settings = get_settings()
 genai.configure(api_key=settings.gemini_api_key)
 _model = genai.GenerativeModel(settings.visualizer_model)
 
-VISUALIZER_SYSTEM = """
-You are a world-class Data Visualization Engineer. Generate stunning, data-rich, interactive chart configurations that make insights instantly obvious.
+# ── Brand palette ────────────────────────────────────────────────────────────
+PALETTE = ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1","#96CEB4","#A855F7","#F59E0B","#EC4899"]
 
-## CORE PHILOSOPHY
-1. CHARTS ALWAYS WIN - Use tables ONLY if data has zero numeric columns and only raw IDs/names with no aggregation possible.
-2. QUALITY OVER QUANTITY - Generate 3-6 carefully chosen visualizations. Never repeat chart types.
-3. ALWAYS START WITH KPI CARDS - If any numeric aggregate exists, generate 1-4 KPI cards first.
-4. TELL A STORY - Each chart should answer a specific business question.
+# ── Phase 1: Programmatic data pattern detection ─────────────────────────────
+def detect_data_patterns(columns: list, rows: list, col_stats: dict) -> list[dict]:
+    """Analyze data shape and detect chart-worthy patterns before calling the LLM."""
+    patterns = []
+    numeric_cols = [c for c, s in col_stats.items() if s["type"] == "numeric"]
+    categorical_cols = [c for c, s in col_stats.items() if s["type"] == "categorical"]
+    row_count = len(rows)
 
-## CHART TYPES
+    # Time series detection
+    time_keywords = ["date", "month", "year", "time", "quarter", "week", "day", "period", "created", "updated"]
+    time_cols = [c for c in columns if any(k in c.lower() for k in time_keywords)]
+    if time_cols and numeric_cols:
+        patterns.append({
+            "pattern": "time_series",
+            "time_col": time_cols[0],
+            "value_cols": numeric_cols[:3],
+            "recommended": ["line", "area"],
+        })
+
+    # Correlation detection (2+ numeric cols)
+    if len(numeric_cols) >= 2:
+        patterns.append({
+            "pattern": "correlation",
+            "cols": numeric_cols[:3],
+            "recommended": ["scatter", "bubble", "heatmap"],
+        })
+
+    # Distribution analysis
+    for col in numeric_cols[:2]:
+        if col_stats[col].get("distinct_count", 0) > 8:
+            patterns.append({
+                "pattern": "distribution",
+                "col": col,
+                "recommended": ["histogram", "box", "violin"],
+            })
+            break
+
+    # Category proportions
+    for col in categorical_cols:
+        distinct = col_stats[col].get("distinct_count", 0)
+        if 2 <= distinct <= 8:
+            patterns.append({
+                "pattern": "proportion",
+                "col": col,
+                "count": distinct,
+                "recommended": ["donut", "pie", "sunburst"],
+            })
+            break
+        elif 8 < distinct <= 25:
+            patterns.append({
+                "pattern": "hierarchy",
+                "col": col,
+                "count": distinct,
+                "recommended": ["treemap", "sunburst"],
+            })
+            break
+
+    # Ranking detection (categorical + numeric)
+    if categorical_cols and numeric_cols:
+        patterns.append({
+            "pattern": "ranking",
+            "category_col": categorical_cols[0],
+            "value_col": numeric_cols[0],
+            "recommended": ["horizontal_bar", "bar", "funnel"],
+        })
+
+    # Aggregates for KPIs
+    if numeric_cols:
+        patterns.append({
+            "pattern": "aggregate_metrics",
+            "cols": numeric_cols[:4],
+            "recommended": ["kpi", "gauge"],
+        })
+
+    # Comparison across groups
+    if len(categorical_cols) >= 2 and numeric_cols:
+        patterns.append({
+            "pattern": "group_comparison",
+            "group_cols": categorical_cols[:2],
+            "value_col": numeric_cols[0],
+            "recommended": ["grouped_bar", "stacked_bar", "radar"],
+        })
+
+    # Waterfall for cumulative/financial data
+    finance_keywords = ["revenue", "cost", "profit", "expense", "income", "sales", "budget", "price", "amount"]
+    finance_cols = [c for c in columns if any(k in c.lower() for k in finance_keywords)]
+    if finance_cols and categorical_cols:
+        patterns.append({
+            "pattern": "cumulative",
+            "value_col": finance_cols[0],
+            "recommended": ["waterfall", "bar"],
+        })
+
+    return patterns
+
+
+VISUALIZER_SYSTEM = """You are a world-class Data Visualization Architect. Generate stunning, interactive Plotly.js chart configurations that make insights instantly clear.
+
+## CORE RULES
+1. Generate 4-7 diverse, high-quality visualizations per query. Never fewer than 4.
+2. ALWAYS start with 1-3 KPI cards for key numeric aggregates.
+3. NEVER repeat the same chart_type twice.
+4. Each chart must answer a specific business question — title it as that question's answer.
+5. Match chart types to the DETECTED DATA PATTERNS provided. Use the recommended types as strong hints.
+6. Prefer interactive, zoomable charts over static ones.
+
+## AVAILABLE CHART TYPES (20+)
 
 ### KPI Cards (library: "kpi")
-For single metrics: total, average, max, min, count.
-Config MUST include:
+Single big metrics. Config:
+{"value": 12345, "formatted_value": "12,345", "unit": "Rs.", "trend": "+8.2%", "trend_direction": "up"}
+trend_direction: "up" (green), "down" (red), "neutral" (grey)
+
+### Plotly Charts (library: "plotly")
+
+IMPORTANT: Every Plotly chart config MUST have exactly two keys: "data" (array of traces) and "layout" (object).
+
+#### Basic Charts
+- **bar**: Vertical bar chart
+  data: [{"type": "bar", "x": ["A","B","C"], "y": [10,20,30], "marker": {"color": "#7C6FFF"}}]
+
+- **horizontal_bar**: Horizontal bar chart
+  data: [{"type": "bar", "x": [30,20,10], "y": ["A","B","C"], "orientation": "h", "marker": {"color": "#7C6FFF"}}]
+
+- **grouped_bar**: Multiple series side-by-side
+  data: [{"type": "bar", "name": "2024", "x": [...], "y": [...]}, {"type": "bar", "name": "2025", "x": [...], "y": [...]}]
+  layout: {"barmode": "group"}
+
+- **stacked_bar**: Stacked bars
+  data: [{"type": "bar", "name": "A", "x": [...], "y": [...]}, {"type": "bar", "name": "B", "x": [...], "y": [...]}]
+  layout: {"barmode": "stack"}
+
+- **line**: Time series / trends
+  data: [{"type": "scatter", "mode": "lines+markers", "x": [...], "y": [...], "line": {"shape": "spline", "width": 3}, "marker": {"size": 6}}]
+
+- **area**: Filled area (volume emphasis)
+  data: [{"type": "scatter", "mode": "lines", "fill": "tozeroy", "x": [...], "y": [...], "line": {"shape": "spline"}, "fillcolor": "rgba(124,111,255,0.15)"}]
+
+- **scatter**: Correlation between 2 numerics
+  data: [{"type": "scatter", "mode": "markers", "x": [...], "y": [...], "marker": {"size": 10, "color": "#7C6FFF", "opacity": 0.7}}]
+
+- **bubble**: 3-variable scatter (size = 3rd metric)
+  data: [{"type": "scatter", "mode": "markers", "x": [...], "y": [...], "marker": {"size": [...], "sizemode": "area", "sizeref": 0.1, "color": "#00C9B1"}, "text": [...]}]
+
+#### Proportional Charts
+- **pie**: Solid pie, ≤6 slices
+  data: [{"type": "pie", "labels": [...], "values": [...], "marker": {"colors": [palette]}, "textinfo": "label+percent", "textposition": "auto"}]
+
+- **donut**: Ring chart with center metric
+  data: [{"type": "pie", "labels": [...], "values": [...], "hole": 0.45, "marker": {"colors": [palette]}, "textinfo": "label+percent"}]
+
+- **sunburst**: Hierarchical proportions
+  data: [{"type": "sunburst", "labels": [...], "parents": [...], "values": [...], "branchvalues": "total"}]
+
+#### Hierarchical / Flow
+- **treemap**: Hierarchical breakdown, 12+ categories
+  data: [{"type": "treemap", "labels": [...], "parents": [...], "values": [...], "textinfo": "label+value+percent root", "marker": {"colors": [palette]}}]
+
+- **funnel**: Conversion pipeline
+  data: [{"type": "funnel", "y": ["Stage 1","Stage 2","Stage 3"], "x": [100,60,30], "textinfo": "value+percent initial", "marker": {"color": [palette]}}]
+
+- **waterfall**: Cumulative breakdown
+  data: [{"type": "waterfall", "x": [...], "y": [...], "measure": ["absolute","relative","relative","total"], "connector": {"line": {"color": "rgba(124,111,255,0.3)"}}}]
+
+- **sankey**: Flow allocation
+  data: [{"type": "sankey", "node": {"label": [...], "color": [palette]}, "link": {"source": [...], "target": [...], "value": [...]}}]
+
+#### Statistical Charts
+- **histogram**: Distribution of a single numeric
+  data: [{"type": "histogram", "x": [...], "nbinsx": 20, "marker": {"color": "#7C6FFF", "line": {"color": "rgba(255,255,255,0.3)", "width": 1}}}]
+
+- **box**: Distribution with outliers
+  data: [{"type": "box", "y": [...], "name": "Group A", "marker": {"color": "#7C6FFF"}, "boxpoints": "outliers"}]
+
+- **violin**: Distribution shape
+  data: [{"type": "violin", "y": [...], "name": "Group A", "box": {"visible": true}, "meanline": {"visible": true}, "fillcolor": "rgba(124,111,255,0.3)"}]
+
+#### Specialized Charts
+- **radar**: Multi-metric comparison (uses scatterpolar)
+  data: [{"type": "scatterpolar", "r": [4,3,5,2,4], "theta": ["Speed","Power","Range","Safety","Cost"], "fill": "toself", "name": "Product A"}]
+
+- **gauge**: Single metric with target
+  data: [{"type": "indicator", "mode": "gauge+number+delta", "value": 85, "delta": {"reference": 70}, "gauge": {"axis": {"range": [0, 100]}, "bar": {"color": "#7C6FFF"}, "steps": [{"range": [0,50], "color": "rgba(124,111,255,0.1)"}, {"range": [50,80], "color": "rgba(124,111,255,0.2)"}, {"range": [80,100], "color": "rgba(124,111,255,0.3)"}]}}]
+
+- **heatmap**: Matrix / correlation
+  data: [{"type": "heatmap", "x": [...], "y": [...], "z": [[...]], "colorscale": [[0,"#0d0d16"],[0.5,"#7C6FFF"],[1,"#00C9B1"]], "showscale": true}]
+
+## LAYOUT TEMPLATE (apply to EVERY Plotly chart)
 {
-  "value": 12345,
-  "formatted_value": "12,345",
-  "unit": "Rs.",
-  "trend": "+8.2%",
-  "trend_direction": "up"
+  "template": "plotly_dark",
+  "paper_bgcolor": "transparent",
+  "plot_bgcolor": "transparent",
+  "font": {"family": "Inter, system-ui, sans-serif", "color": "#94a3b8"},
+  "margin": {"l": 50, "r": 30, "t": 40, "b": 50},
+  "colorway": ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1","#96CEB4","#A855F7"],
+  "hoverlabel": {"bgcolor": "rgba(13,13,22,0.95)", "bordercolor": "rgba(124,111,255,0.3)", "font": {"color": "#e2e8f0", "size": 12}},
+  "xaxis": {"gridcolor": "rgba(255,255,255,0.04)", "zerolinecolor": "rgba(255,255,255,0.08)"},
+  "yaxis": {"gridcolor": "rgba(255,255,255,0.04)", "zerolinecolor": "rgba(255,255,255,0.08)"}
 }
-trend_direction must be one of: "up", "down", or "neutral"
-"up" = positive/good (shown in green), "down" = negative/bad (shown in red), "neutral" = no change (grey)
 
-### ECharts (library: "echarts")
-Always include this global color palette on the ROOT of every echarts config:
-"color": ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1","#96CEB4","#A855F7"]
+## META FIELD (required on every plotly chart for frontend cross-filtering)
+- bar/line/area/horizontal_bar/grouped_bar/stacked_bar/waterfall: {"x_col": "col", "y_cols": ["col"], "group_col": null, "agg": "sum"}
+- pie/donut/sunburst/treemap/funnel: {"category_col": "col", "value_col": "col", "agg": "sum"}
+- scatter/bubble: {"x_col": "col", "y_cols": ["col"], "group_col": null, "agg": "none"}
+- histogram/box/violin: {"x_col": "col", "y_cols": ["col"], "agg": "none"}
+- heatmap: {"x_col": "col", "y_cols": ["col"], "group_col": "col", "agg": "sum"}
+- radar: {"x_col": null, "y_cols": ["metric1","metric2"], "group_col": "col", "agg": "avg"}
+- gauge/kpi: null
 
-Chart types:
-- horizontal_bar: rankings, leaderboards, categories with long names
-- bar: short category name comparisons (vertical)
-- donut: proportions of 2 to 8 categories, always show percentages
-- pie: solid pie for 5 or fewer categories
-- area: time series trends with fill under curve
-- line: trends over time without fill
-- scatter: correlation between TWO numeric columns
-- stacked_bar: multiple groups compared across categories
-- treemap: hierarchical data with more than 12 categories
-- funnel: conversion pipelines
-- radar: comparing 3+ performance metrics
+## DATA LIMITS
+- bar/horizontal_bar: max 20 items, sort descending
+- pie/donut: max 8 slices, group rest into "Others"
+- scatter/bubble: max 100 points
+- line/area: max 50 points
+- treemap/sunburst: max 30 nodes
+- funnel: max 8 stages
+- heatmap: max 15×15 matrix
 
-## CRITICAL RULES - MUST FOLLOW
-
-### SCATTER DATA FORMAT
-Scatter series data MUST be an array of [x, y] number pairs.
-CORRECT:   "data": [[12, 500], [34, 800], [56, 1200]]
-WRONG:     "data": [{"x": 12, "y": 500}, {"x": 34, "y": 800}]
-WRONG:     "data": [12, 34, 56]
-
-### DONUT REQUIREMENTS
-A donut chart MUST have 2 or more data slices. A single-slice donut is FORBIDDEN (it renders as a plain circle).
-Always use: "radius": ["42%", "68%"]
-Always include labels: "label": {"show": true, "formatter": "{b}\\n{d}%", "fontSize": 11, "lineHeight": 16}
-Always include labelLine: "labelLine": {"show": true, "length": 12, "length2": 8, "smooth": true}
-Always include center graphic with the total value.
-CORRECT: "data": [{"value": 300, "name": "A"}, {"value": 200, "name": "B"}, {"value": 100, "name": "C"}]
-FORBIDDEN: "data": [{"value": 600, "name": "All Items"}]
-
-### AXES MUST BE CORRECT
-- horizontal_bar: xAxis.type = "value", yAxis.type = "category", yAxis.data = [list of names]
-- bar (vertical): xAxis.type = "category", xAxis.data = [list of names], yAxis.type = "value"
-
-### DIVERSITY RULE
-NEVER use the same chart_type twice in one response.
-GOOD: [kpi, kpi, donut, horizontal_bar, area, scatter]
+## DIVERSITY RULE
+NEVER use the same chart_type twice. Maximize variety.
+GOOD: [kpi, kpi, donut, horizontal_bar, line, scatter, histogram]
 BAD:  [kpi, bar, bar, scatter]
 
-### DATA LIMITS
-- horizontal_bar and bar: max 20 points sorted descending
-- donut and pie: max 8 slices, group remainder into "Others"
-- scatter: max 50 points
-- area and line: max 30 points
-
-## QUALITY STANDARDS
-Apply to EVERY chart:
-
-ANIMATIONS (required on root):
-"animation": true, "animationDuration": 900, "animationEasing": "cubicOut", "animationDurationUpdate": 500
-
-COLOR PALETTE (required on root of every echarts config):
-"color": ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1","#96CEB4","#A855F7"]
-
-LEGEND (fits above the chart, never overlaps the plot area):
-"legend": {"type": "scroll", "top": "5%", "orient": "horizontal"}
-
-GRID (for bar, horizontal_bar, area, line, scatter, stacked_bar):
-"grid": {"left": "5%", "right": "5%", "top": "16%", "bottom": "8%", "containLabel": true}
-
-TOOLTIP:
-- bar/line/area/horizontal_bar/stacked_bar: {"trigger": "axis", "axisPointer": {"type": "shadow", "shadowStyle": {"color": "rgba(124,111,255,0.06)"}}}
-- pie/donut: {"trigger": "item", "formatter": "{b}: {c} ({d}%)"}
-- scatter: {"trigger": "item", "formatter": "({c0}, {c1})"}
-
-BAR (vertical):
-"barMaxWidth": 48, "barCategoryGap": "38%",
-"itemStyle": {"borderRadius": [6,6,0,0], "color": {"type":"linear","x":0,"y":0,"x2":0,"y2":1,"colorStops":[{"offset":0,"color":"#7C6FFF"},{"offset":1,"color":"rgba(124,111,255,0.3)"}]}},
-"emphasis": {"itemStyle": {"color":"#00C9B1","shadowBlur":12,"shadowColor":"rgba(0,201,177,0.4)"}},
-"label": {"show": true, "position": "top", "fontSize": 11, "fontWeight": "bold"}
-
-HORIZONTAL BAR:
-"barMaxWidth": 40, "barCategoryGap": "30%",
-"itemStyle": {"borderRadius": [0,6,6,0], "color": {"type":"linear","x":0,"y":0,"x2":1,"y2":0,"colorStops":[{"offset":0,"color":"rgba(124,111,255,0.4)"},{"offset":1,"color":"#7C6FFF"}]}},
-"emphasis": {"itemStyle": {"color":"#00C9B1"}},
-"label": {"show": true, "position": "right", "fontSize": 11}
-
-DONUT SERIES:
-"radius": ["42%", "68%"], "center": ["50%", "50%"],
-"label": {"show": true, "formatter": "{b}\\n{d}%", "fontSize": 11, "lineHeight": 16},
-"labelLine": {"show": true, "length": 12, "length2": 8, "smooth": true},
-"itemStyle": {"borderRadius": 5, "borderWidth": 2, "borderColor": "transparent"},
-"emphasis": {"scaleSize": 8, "itemStyle": {"shadowBlur": 20}}
-Graphic center label (required): "graphic": [{"type":"text","left":"center","top":"middle","style":{"text":"Total\\n<value>","fontSize":13,"fontWeight":"bold","fill":"#94a3b8","textAlign":"center"}}]
-
-AREA:
-"smooth": true, "symbol": "circle", "symbolSize": 6,
-"emphasis": {"focus": "series"},
-"areaStyle": {"color": {"type":"linear","x":0,"y":0,"x2":0,"y2":1,"colorStops":[{"offset":0,"color":"rgba(124,111,255,0.35)"},{"offset":1,"color":"rgba(124,111,255,0.02)"}]}}
-
-LINE:
-"smooth": true, "symbol": "circle", "symbolSize": 6,
-"emphasis": {"focus": "series"}
-
-SCATTER (full config required):
-"xAxis": {"type": "value", "name": "<x_column_name>", "nameLocation": "middle", "nameGap": 28, "nameTextStyle": {"fontSize": 11}},
-"yAxis": {"type": "value", "name": "<y_column_name>", "nameLocation": "middle", "nameGap": 40, "nameTextStyle": {"fontSize": 11}},
-"symbolSize": 10,
-"emphasis": {"symbolSize": 16, "itemStyle": {"shadowBlur": 12, "shadowColor": "rgba(124,111,255,0.5)"}}
-
-DATA ZOOM (add when data points > 10 in axis charts):
-"dataZoom": [{"type": "inside", "start": 0, "end": 100}, {"type": "slider", "height": 18, "bottom": 0, "borderColor": "transparent", "fillerColor": "rgba(124,111,255,0.15)"}]
-Note: When using dataZoom with slider, set grid bottom to "20%" instead of "8%".
-
-## META FIELD (required on every echarts chart for cross-filtering)
-- bar/line/area/horizontal_bar: {"x_col": "col", "y_cols": ["col"], "group_col": null, "agg": "sum"}
-- pie/donut: {"category_col": "col", "value_col": "col", "agg": "sum"}
-- scatter: {"x_col": "col", "y_cols": ["col"], "group_col": null, "agg": "none"}
-- kpi/table: null
-
-## FORBIDDEN (read this carefully before generating your response)
-- Donut or pie with only 1 data slice
-- Scatter data NOT in [[x,y]] pair format
-- Same chart_type used twice in one response
-- Table when any numeric column exists
-- More than 8 pie/donut slices without grouping into "Others"
-- Legend at bottom: 0 — always use top: "5%" to avoid overlap with the chart
-- Missing color palette on echarts config root
-- Missing trend_direction on KPI cards
-- Scatter without explicit xAxis and yAxis type: "value"
-
 ## OUTPUT FORMAT
-Strict JSON array. No markdown. No explanation.
+Strict JSON array. No markdown. No explanation. No code fences.
 [
   {"library":"kpi","title":"Total Revenue","meta":null,"config":{"value":125430,"formatted_value":"1,25,430","unit":"Rs.","trend":"+8.2%","trend_direction":"up"}},
-  {"library":"echarts","chart_type":"donut","title":"Sales by Category","meta":{"category_col":"category","value_col":"total","agg":"sum"},"config":{"animation":true,"animationDuration":900,"animationEasing":"cubicOut","color":["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1","#96CEB4","#A855F7"],"legend":{"type":"scroll","top":"5%","orient":"horizontal"},"tooltip":{"trigger":"item","formatter":"{b}: {c} ({d}%)"},"series":[{"type":"pie","radius":["42%","68%"],"center":["50%","50%"],"data":[{"value":450,"name":"Electronics"},{"value":320,"name":"Clothing"},{"value":180,"name":"Books"}],"label":{"show":true,"formatter":"{b}\\n{d}%","fontSize":11,"lineHeight":16},"labelLine":{"show":true,"length":12,"length2":8},"itemStyle":{"borderRadius":5,"borderWidth":2,"borderColor":"transparent"},"emphasis":{"scaleSize":8}}],"graphic":[{"type":"text","left":"center","top":"middle","style":{"text":"Total\\n950","fontSize":13,"fontWeight":"bold","fill":"#94a3b8","textAlign":"center"}}]}}
+  {"library":"plotly","chart_type":"donut","title":"Sales by Category","meta":{"category_col":"category","value_col":"total","agg":"sum"},"config":{"data":[{"type":"pie","labels":["Electronics","Clothing","Books"],"values":[450,320,180],"hole":0.45,"marker":{"colors":["#7C6FFF","#00C9B1","#FF6B6B"]},"textinfo":"label+percent"}],"layout":{"template":"plotly_dark","paper_bgcolor":"transparent","plot_bgcolor":"transparent","font":{"family":"Inter, system-ui, sans-serif","color":"#94a3b8"},"margin":{"l":30,"r":30,"t":10,"b":30},"showlegend":true,"legend":{"orientation":"h","yanchor":"bottom","y":-0.2}}}}
 ]
+
+## FORBIDDEN
+- Repeating the same chart_type
+- Pie/donut with only 1 slice
+- Missing "data" or "layout" keys in plotly config
+- Table when numeric columns exist
+- More than 7 charts total
+- Missing meta field on plotly charts
 """
+
 
 async def generate_charts(
     columns: list,
@@ -179,15 +266,16 @@ async def generate_charts(
     row_count: int
 ) -> list[dict] | None:
     """
-    Uses Gemini Pro to analyze query results and generate 1-8 smart chart configs.
-    Each chart includes `meta` for live frontend cross-filtering.
+    Two-phase chart generation:
+      Phase 1: Detect data patterns programmatically
+      Phase 2: Use Gemini to generate 4-7 Plotly configs matched to patterns
     """
     if not rows or len(rows) == 0:
         return None
 
     sample_rows = rows[:25]
 
-    # Compute column statistics
+    # ── Phase 1: Compute column statistics ────────────────────────────────
     col_stats = {}
     for col in columns:
         values = [r.get(col) for r in rows if r.get(col) is not None]
@@ -208,6 +296,9 @@ async def generate_charts(
                 "sample_values": unique_vals[:10],
             }
 
+    # ── Phase 1b: Detect data patterns ────────────────────────────────────
+    patterns = detect_data_patterns(columns, rows, col_stats)
+
     prompt = f"""### User's Business Question
 "{user_question}"
 
@@ -218,17 +309,20 @@ async def generate_charts(
 ### Column Analysis
 {json.dumps(col_stats, indent=2, default=str)}
 
+### Detected Data Patterns (MATCH your chart types to these!)
+{json.dumps(patterns, indent=2, default=str)}
+
 ### Sample Data (first {len(sample_rows)} rows)
 {json.dumps(sample_rows, indent=2, default=str)}
 
-Now generate the BEST 1-8 dashboard charts for this data. Include meta field on every chart."""
+Generate 4-7 DIVERSE dashboard charts for this data. Include KPIs first, then use the detected patterns to choose the best chart types. Include meta field on every chart."""
 
     try:
         response = await _model.generate_content_async(
             f"{VISUALIZER_SYSTEM}\n\n{prompt}",
             generation_config=genai.GenerationConfig(
                 response_mime_type="application/json",
-                temperature=0.2,
+                temperature=0.4,
             ),
         )
 
@@ -272,30 +366,30 @@ Now generate the BEST 1-8 dashboard charts for this data. Include meta field on 
         if not isinstance(charts, list):
             charts = [charts] if isinstance(charts, dict) else []
 
-        # Validate entries and cap at 8
+        # ── Validate and cap at 8 ─────────────────────────────────────────
         valid_charts = []
         for chart in charts[:8]:
             if not isinstance(chart, dict):
                 continue
-            # Legacy format support
-            if "library" not in chart and "chart_type" in chart:
-                if chart["chart_type"] == "kpi_card":
-                    valid_charts.append({ "library": "kpi", "title": chart.get("title","KPI"), "meta": None, "config": chart })
-                else:
-                    valid_charts.append({
-                        "library": "echarts",
-                        "chart_type": chart["chart_type"],
-                        "title": chart.get("title","Chart"),
-                        "meta": chart.get("meta"),
-                        "config": {k: v for k, v in chart.items() if k not in ("chart_type","title","library","meta")},
-                    })
-            elif "library" in chart and "config" in chart:
+            # Must have library + config
+            if "library" not in chart:
+                continue
+            if chart["library"] == "kpi" and "config" in chart:
+                valid_charts.append(chart)
+            elif chart["library"] == "plotly" and "config" in chart:
+                cfg = chart["config"]
+                # Validate Plotly config has data and layout
+                if isinstance(cfg, dict) and "data" in cfg:
+                    if "layout" not in cfg:
+                        cfg["layout"] = {}
+                    valid_charts.append(chart)
+            elif chart["library"] == "table" and "config" in chart:
                 valid_charts.append(chart)
 
         if not valid_charts:
             return None
 
-        logger.info(f"[VisualizerAgent] Generated {len(valid_charts)} charts: {[c.get('library') for c in valid_charts]}")
+        logger.info(f"[VisualizerAgent] Generated {len(valid_charts)} charts: {[c.get('chart_type', c.get('library')) for c in valid_charts]}")
         return valid_charts
 
     except Exception as e:

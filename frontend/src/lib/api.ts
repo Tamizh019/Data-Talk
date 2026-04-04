@@ -1,8 +1,11 @@
 // SSE streaming API client for Data-Talk
 
-export interface EChartsConfig {
-    chart_type: string;
+export interface ChartConfig {
+    library: string;
+    chart_type?: string;
     title?: string;
+    config?: any;
+    meta?: any;
     [key: string]: unknown;
 }
 
@@ -28,7 +31,7 @@ export interface ChatMessage {
     role: "user" | "assistant";
     content?: string;
     sql?: string;
-    charts?: EChartsConfig[];
+    charts?: ChartConfig[];
     rows?: Record<string, any>[];     // stored for studio restore (capped at 500)
     columns?: string[];               // column names matching rows
     queryId?: string;                 // links this message to a QueryEntry in StudioContext
@@ -45,7 +48,7 @@ interface StreamCallbacks {
     onIntent?: (intent: "sql" | "chat") => void;
     onSql?: (sql: string) => void;
     onResult?: (rows: object[], columns: string[], rowCount: number, attempts: number) => void;
-    onVisualization?: (charts: EChartsConfig[]) => void;
+    onVisualization?: (charts: ChartConfig[]) => void;
     onExplanation?: (text: string) => void;
     onCached?: (data: object) => void;
     onError?: (message: string) => void;

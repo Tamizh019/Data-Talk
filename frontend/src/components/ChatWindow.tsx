@@ -7,7 +7,7 @@ import {
     BarChart2, SlidersHorizontal, X, Database, ChevronRight, Activity, Filter, Search,
     ShieldAlert, Sparkles, ArrowRight,
 } from "lucide-react";
-import { streamChat, type ChatMessage } from "@/lib/api";
+import { streamChat, fetchSchema, type ChatMessage, type SchemaTable } from "@/lib/api";
 import SQLDisplay from "./SQLDisplay";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { useChat } from "@/lib/chat-context";
@@ -517,6 +517,28 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
     const [filterStates, setFilterStates] = useState<Record<number, MsgFilter[]>>({});
     const [activeMsgIndex, setActiveMsgIndex] = useState<number | null>(null);
 
+    // ── @ Mention state ────────────────────────────────────────────────────────
+    const [schemaTables, setSchemaTables] = useState<SchemaTable[]>([]);
+    const [mentionQuery, setMentionQuery] = useState<string | null>(null);   // null = closed
+    const [activeMentionIdx, setActiveMentionIdx] = useState(0);
+    const schemaLoadedRef = useRef(false);
+
+    /** Lazy-load tables on first @ press */
+    const ensureSchemaTables = async () => {
+        if (schemaLoadedRef.current || !dbConnected) return;
+        try {
+            const data = await fetchSchema();
+            setSchemaTables(data.tables || []);
+            schemaLoadedRef.current = true;
+        } catch {}
+    };
+
+    const filteredMentionTables = useMemo(() => {
+        if (mentionQuery === null) return [];
+        const q = mentionQuery.toLowerCase();
+        return schemaTables.filter(t => t.table.toLowerCase().includes(q));
+    }, [mentionQuery, schemaTables]);
+
     const bottomRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -624,7 +646,7 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
             <div className="flex-1 flex flex-col min-w-0 h-full relative">
                 {/* Scroll Area */}
                 <div className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
-                    <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+                    <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
                         {messages.map((msg, i) =>
                             msg.role === "user" ? (
                                 <div key={i} className="flex flex-col items-end gap-1 animate-fadein">
@@ -729,14 +751,110 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
                 {/* Input Area */}
                 <div className="shrink-0 px-6 pb-6 pt-2 flex flex-col items-center gap-3 bg-gradient-to-t from-background via-background to-transparent z-10">
 
-                    <div className="w-full max-w-3xl relative group">
+                    <div className="w-full max-w-5xl relative group">
+                        {/* @ Mention Dropdown */}
+                        {mentionQuery !== null && filteredMentionTables.length > 0 && (
+                            <div
+                                className="absolute bottom-full mb-2 left-0 w-full max-w-[380px] z-50 rounded-xl shadow-2xl animate-fadein flex flex-col"
+                                style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border-strong)", backdropFilter: "blur(20px)", maxHeight: 320 }}
+                            >
+                                <div className="px-3 pt-2 pb-1 flex items-center gap-1.5 border-b" style={{ borderColor: "var(--glass-border)" }}>
+                                    <Database className="w-3 h-3" style={{ color: "#7C6FFF" }} />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tables</span>
+                                    {mentionQuery && <span className="text-[10px] text-[#7C6FFF] font-semibold ml-1">@ {mentionQuery}</span>}
+                                </div>
+                                <div className="py-1 overflow-y-auto flex-1 min-h-0 custom-scrollbar">
+                                    {filteredMentionTables.map((t, idx) => {
+                                        const cols = t.columns ? t.columns.split(",").slice(0, 4).map(c => c.trim()).filter(Boolean) : [];
+                                        return (
+                                            <button
+                                                key={t.table}
+                                                onMouseDown={e => {
+                                                    e.preventDefault();
+                                                    // Replace from last @ to cursor with @tablename
+                                                    const at = input.lastIndexOf("@");
+                                                    const next = input.slice(0, at) + `@${t.table} ` + input.slice(at + 1 + (mentionQuery?.length ?? 0));
+                                                    setInput(next);
+                                                    setMentionQuery(null);
+                                                    setTimeout(() => textareaRef.current?.focus(), 0);
+                                                }}
+                                                className="w-full flex flex-col px-3 py-2 text-left transition-all hover:bg-foreground/5"
+                                                style={{
+                                                    background: idx === activeMentionIdx ? "rgba(124,111,255,0.08)" : "transparent",
+                                                    borderLeft: idx === activeMentionIdx ? "2px solid #7C6FFF" : "2px solid transparent",
+                                                }}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Database className="w-3 h-3 shrink-0" style={{ color: "#7C6FFF" }} />
+                                                    <span className="text-[12px] font-bold text-foreground">{t.table}</span>
+                                                </div>
+                                                {cols.length > 0 && (
+                                                    <p className="text-[10px] text-muted-foreground/50 mt-0.5 ml-5 truncate font-mono">
+                                                        {cols.join(" · ")}{t.columns.split(",").length > 4 ? " …" : ""}
+                                                    </p>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="px-3 py-1.5 border-t text-[9px] text-muted-foreground/30 font-medium" style={{ borderColor: "var(--glass-border)" }}>
+                                    ↑↓ navigate · Enter to select · Esc close
+                                </div>
+                            </div>
+                        )}
+
                         <div className="absolute inset-0 rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity blur-2xl pointer-events-none" style={{ background: "rgba(124,111,255,0.15)" }} />
                         <div className="relative flex items-end rounded-2xl p-2.5 shadow-xl transition-all" style={{ background: "var(--input-bg)", backdropFilter: "blur(20px)", border: "1px solid var(--glass-border-strong)", boxShadow: "0 8px 30px rgba(0,0,0,0.1)" }}>
                             <button className="p-2.5 transition-colors text-muted-foreground hover:text-[#00C9B1] mb-0.5" onClick={() => fileInputRef.current?.click()} disabled={isUploading || isLoading}>
                                 <Paperclip className={`w-4 h-4 ${isUploading ? "animate-bounce text-[#00C9B1]" : ""}`} />
                                 <input type="file" ref={fileInputRef} className="hidden" accept=".txt,.csv,.pdf,.md,.json" onChange={handleFileUpload} />
                             </button>
-                            <textarea ref={textareaRef} value={input} onChange={e => { setInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px"; }} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Ask anything about your data..." disabled={isLoading} rows={1} className="flex-1 bg-transparent outline-none border-none text-[14px] font-medium py-2.5 resize-none leading-relaxed min-h-[24px] max-h-[200px] text-foreground placeholder:text-muted-foreground/50 tracking-wide" style={{ caretColor: "#7C6FFF" }} />
+                            <textarea
+                                ref={textareaRef}
+                                value={input}
+                                onChange={async e => {
+                                    const val = e.target.value;
+                                    setInput(val);
+                                    e.target.style.height = "auto";
+                                    e.target.style.height = Math.min(e.target.scrollHeight, 200) + "px";
+
+                                    // ── @ mention detection ────────────────
+                                    const cursor = e.target.selectionStart ?? val.length;
+                                    const textBefore = val.slice(0, cursor);
+                                    const atMatch = textBefore.match(/@([\w]*)$/);
+                                    if (atMatch) {
+                                        await ensureSchemaTables();
+                                        setMentionQuery(atMatch[1]);   // text after @
+                                        setActiveMentionIdx(0);
+                                    } else {
+                                        setMentionQuery(null);
+                                    }
+                                }}
+                                onKeyDown={e => {
+                                    // @ mention keyboard nav
+                                    if (mentionQuery !== null && filteredMentionTables.length > 0) {
+                                        if (e.key === "ArrowDown") { e.preventDefault(); setActiveMentionIdx(i => Math.min(i + 1, filteredMentionTables.length - 1)); return; }
+                                        if (e.key === "ArrowUp") { e.preventDefault(); setActiveMentionIdx(i => Math.max(i - 1, 0)); return; }
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            const t = filteredMentionTables[activeMentionIdx];
+                                            if (t) {
+                                                const at = input.lastIndexOf("@");
+                                                setInput(input.slice(0, at) + `@${t.table} ` + input.slice(at + 1 + (mentionQuery?.length ?? 0)));
+                                                setMentionQuery(null);
+                                            }
+                                            return;
+                                        }
+                                        if (e.key === "Escape") { setMentionQuery(null); return; }
+                                    }
+                                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+                                }}
+                                placeholder="Ask anything… type @ to tag a table"
+                                disabled={isLoading}
+                                rows={1}
+                                className="flex-1 bg-transparent outline-none border-none text-[14px] font-medium py-2.5 resize-none leading-relaxed min-h-[24px] max-h-[200px] text-foreground placeholder:text-muted-foreground/50 tracking-wide"
+                                style={{ caretColor: "#7C6FFF" }}
+                            />
                             <div className="flex items-center gap-2 mb-0.5 ml-1">
                                 <button className="p-2.5 transition-colors text-muted-foreground hover:text-[#7C6FFF]"><Mic className="w-4 h-4" /></button>
                                 <button onClick={() => sendMessage()} disabled={!input.trim() || isLoading} className="w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 shadow-md" style={{ background: input.trim() && !isLoading ? "linear-gradient(135deg, #7C6FFF, #00C9B1)" : "var(--glass-border-strong)" }}><Send className="w-4 h-4 ml-0.5" /></button>
