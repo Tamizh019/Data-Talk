@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginContent() {
     const { signInWithGoogle, signInWithGithub, isLoading } = useAuth();
     const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
     const searchParams = useSearchParams();
@@ -216,5 +216,17 @@ export default function LoginPage() {
                 </p>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-[#07070D]">
+                <div className="w-8 h-8 border-2 border-[#7C6FFF] border-t-transparent rounded-full animate-spin" />
+            </div>
+        }>
+            <LoginContent />
+        </Suspense>
     );
 }
