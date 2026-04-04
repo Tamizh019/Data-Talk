@@ -8,11 +8,21 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user with UID 1000 (Required for Hugging Face Spaces)
+RUN useradd -m -u 1000 user && \
+    chown -R user:user /app
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copy everything and ensure proper ownership
+COPY --chown=user:user . .
 
-EXPOSE 8000
+# Switch to the non-root user
+USER user
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Port 7860 is default for Hugging Face Spaces
+EXPOSE 7860
+
+# Run without --reload since it's meant for production (Hugging Face)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
