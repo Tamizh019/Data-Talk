@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.routes.chat import router as chat_router
 from app.routes.upload import router as upload_router
+from app.routes.conversations import router as conversations_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,6 +61,27 @@ app.add_middleware(
 # ── Routes ────────────────────────────────────────────────────────────
 app.include_router(chat_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
+app.include_router(conversations_router, prefix="/api")
+
+@app.get("/api/db-status", tags=["admin"])
+async def db_status():
+    """
+    Lightweight connection status check.
+    Frontend polls this on mount to quickly show the connected/disconnected pill
+    without triggering a full reconnect round-trip.
+    """
+    from app.core import sql_executor as _sql_exec
+    connected = False
+    if _sql_exec._engine is not None:
+        try:
+            async with _sql_exec._engine.connect() as conn:
+                from sqlalchemy import text
+                await conn.execute(text("SELECT 1"))
+            connected = True
+        except Exception:
+            connected = False
+    return {"connected": connected}
+
 
 @app.get("/api/schema/reindex", tags=["admin"])
 async def reindex_schema():

@@ -8,6 +8,8 @@ as a 'suggestion' event.
 import logging
 from google import genai
 from google.genai import types
+import hashlib
+from app.core.cache import get_cached, set_cached
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -63,6 +65,12 @@ async def generate_schema_suggestions(schema_context: str) -> dict:
     if not schema_context or schema_context.strip() == "":
         return {}
 
+    cache_key = "suggestions:" + hashlib.md5(schema_context.encode()).hexdigest()
+    cached_result = await get_cached(cache_key)
+    if cached_result:
+        logger.info("[SuggestionAgent] Returning suggestions from cache.")
+        return cached_result
+
     prompt = f"""Database Schema:
 {schema_context}
 
@@ -81,6 +89,7 @@ Generate 6 specific, interesting questions the user can ask about this database.
         raw = response.text.strip().replace("```json", "").replace("```", "").strip()
         result = json.loads(raw)
         logger.info(f"[SuggestionAgent] Generated {sum(len(c['questions']) for c in result.get('categories', []))} suggestions.")
+        await set_cached(cache_key, result, ttl=86400 * 7)  # 7 days
         return result
     except Exception as e:
         logger.error(f"[SuggestionAgent] Failed to generate suggestions: {e}")

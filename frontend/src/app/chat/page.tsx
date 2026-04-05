@@ -211,10 +211,27 @@ function ChatLayout() {
         if (!user) return;
         const reconnect = async () => {
             try {
+                // 1. Fast check — did the backend already have a live connection from a previous session?
+                const statusRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/db-status`);
+                if (statusRes.ok) {
+                    const status = await statusRes.json();
+                    if (status.connected) {
+                        setDbConnected(true);
+                        return; // Already connected — nothing else needed
+                    }
+                }
+
+                // 2. Not connected — pull saved URL from Supabase and reconnect
                 const { data } = await supabase
                     .from("db_connections").select("connection_uri")
                     .eq("user_id", user.id).eq("is_active", true).maybeSingle();
-                if (data?.connection_uri) { await connectDatabase(data.connection_uri); setDbConnected(true); }
+                if (data?.connection_uri) {
+                    const res = await connectDatabase(data.connection_uri);
+                    if (res && res.suggestions) {
+                        localStorage.setItem("datatalk_suggestions", JSON.stringify(res.suggestions));
+                    }
+                    setDbConnected(true);
+                }
             } catch {}
         };
         reconnect();
@@ -395,6 +412,7 @@ function ChatLayout() {
                         setDbConnected(true);
                         if (data && data.suggestions && data.suggestions.categories && activeId) {
                             const sug = data.suggestions;
+                            localStorage.setItem("datatalk_suggestions", JSON.stringify(sug));
                             let prompt = `✅ **Database Connected Successfully!**\n\n${sug.greeting || "Here are some things you can ask me to get started:"}\n\nFollow-ups:\n`;
                             
                             sug.categories.forEach((cat: any) => {

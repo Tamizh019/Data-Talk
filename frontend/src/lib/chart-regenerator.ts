@@ -122,8 +122,15 @@ function buildXY(meta: any, rows: Record<string, any>[], type: string) {
 // ── Horizontal Bar ────────────────────────────────────────────────────────────
 function buildHorizontalBar(meta: any, rows: Record<string, any>[]) {
     const xCol = meta.x_col || meta.category_col;
-    const yCol = (meta.y_cols || [])[0] || meta.value_col;
-    let categories = [...new Set(rows.map(r => String(r[xCol] ?? "")))];
+    let yCol = (meta.y_cols || [])[0] || meta.value_col;
+
+    // Auto-detect best numeric column if yCol is missing or produces only zeros
+    if (!yCol || rows.every(r => Number(r[yCol]) === 0 || isNaN(Number(r[yCol])))) {
+        const allCols = rows.length > 0 ? Object.keys(rows[0]) : [];
+        yCol = allCols.find(col => col !== xCol && rows.some(r => !isNaN(Number(r[col])) && Number(r[col]) !== 0)) || yCol;
+    }
+
+    let categories = [...new Set(rows.map(r => String(r[xCol] ?? "")))].filter(Boolean);
     let _truncated = false;
 
     if (categories.length > 15) {
@@ -134,9 +141,20 @@ function buildHorizontalBar(meta: any, rows: Record<string, any>[]) {
         catSums.sort((a, b) => b.sum - a.sum);
         categories = catSums.slice(0, 15).reverse().map(c => c.cat);
         _truncated = true;
+    } else {
+        // Sort by value descending for visual clarity, then reverse so largest is at top
+        const catSums = categories.map(cat => ({
+            cat,
+            sum: aggregate(rows.filter(r => String(r[xCol] ?? "") === cat), yCol, meta.agg || "sum"),
+        }));
+        catSums.sort((a, b) => a.sum - b.sum); // ascending so top of chart is largest
+        categories = catSums.map(c => c.cat);
     }
 
     const values = categories.map(cat => aggregate(rows.filter(r => String(r[xCol] ?? "") === cat), yCol, meta.agg || "sum"));
+
+    // Safety check — if every value is 0, skip rendering to avoid blank chart with wrong axis
+    if (values.every(v => v === 0)) return null;
 
     return {
         _truncated,
@@ -152,6 +170,7 @@ function buildHorizontalBar(meta: any, rows: Record<string, any>[]) {
         layout: baseLayout({ margin: { l: 120, r: 30, t: 20, b: 40 } }),
     };
 }
+
 
 // ── Grouped / Stacked Bar ─────────────────────────────────────────────────────
 function buildGroupedBar(meta: any, rows: Record<string, any>[], barmode: "group" | "stack") {

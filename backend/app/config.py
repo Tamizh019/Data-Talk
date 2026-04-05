@@ -10,10 +10,14 @@ class Settings(BaseSettings):
     github_token: str = ""
     hf_token: str = ""
 
+    # --- Supabase (Auth & Conversation History) ---
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+
     # --- Multi-Agent Setup (The 9-Agent Workflow) ---
     router_model: str = "llama-3.1-8b-instant"
     doc_rag_model: str = "llama-3.3-70b-versatile"
-    visualizer_model: str = "models/gemini-3.1-pro-preview"
+    visualizer_model: str = "models/gemini-3-flash-preview"
     sql_generator_model: str = "models/gemini-3.1-pro-preview"
     qa_critic_model: str = "llama-3.3-70b-versatile"
     python_agent_model: str = "llama-3.3-70b-versatile"
@@ -29,7 +33,7 @@ class Settings(BaseSettings):
 
     # --- Vector Store (LlamaIndex + pgvector) ---
     use_pgvector: bool = True
-    embed_model: str = "models/text-embedding-004"
+    embed_model: str = "models/text-embedding-0"
     pgvector_collection: str = "data_talk_vectors"
 
     # --- Redis ---

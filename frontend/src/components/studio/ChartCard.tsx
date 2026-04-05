@@ -120,6 +120,8 @@ export default function ChartCard({ block, index, groupId, isDark, onDrilldown, 
     const filteredRows = inlineRows ?? globalFilteredRows;
     const [fullscreen, setFullscreen] = useState(false);
     const [showTypePicker, setShowTypePicker] = useState(false);
+    const [showExportMenu, setShowExportMenu] = useState(false);
+    const [graphDiv, setGraphDiv] = useState<any>(null);
 
     const currentType = (activeChartType[index] || block.chart_type || "bar") as SupportedType;
     const isTable = block.library === "table";
@@ -208,6 +210,67 @@ export default function ChartCard({ block, index, groupId, isDark, onDrilldown, 
     let headerTitle = block.title || "Visualization";
     if (typeof headerTitle === "object" && (headerTitle as any).text) headerTitle = (headerTitle as any).text;
 
+    // ── Export Handlers ────────────────────────────────────────────────────
+    const handleDownloadHTML = useCallback(() => {
+        if (!plotlyConfig) return;
+        const titleStr = String(headerTitle) || "chart";
+        const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${titleStr}</title>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <style>
+        body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; background: ${isDark ? '#0F1117' : '#ffffff'}; color: ${isDark ? '#e2e8f0' : '#1F2937'}; transition: all 0.3s ease; }
+        body.dark-mode { background: #0F1117; color: #e2e8f0; }
+        h2 { margin: 0 0 16px 0; font-size: 18px; }
+        #chart-container { width: 100%; height: 85vh; }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        button { padding: 8px 16px; cursor: pointer; border-radius: 6px; border: 1px solid #ccc; background: #fff; font-weight: 500; font-size: 13px; }
+        body.dark-mode button { background: #1f2937; border-color: #374151; color: #e2e8f0; }
+    </style>
+</head>
+<body class="${isDark ? 'dark-mode' : ''}">
+    <div class="controls">
+        <h2>${titleStr}</h2>
+        <button onclick="document.body.classList.toggle('dark-mode')">Toggle Dark Theme</button>
+    </div>
+    <div id="chart-container"></div>
+    <script>
+        const rawData = ${JSON.stringify(plotlyConfig.data || [])};
+        const layout = ${JSON.stringify(plotlyConfig.layout || {})};
+        layout.autosize = true;
+        layout.paper_bgcolor = 'transparent';
+        layout.plot_bgcolor = 'transparent';
+        Plotly.newPlot('chart-container', rawData, layout, { responsive: true });
+    </script>
+</body>
+</html>`;
+        const blob = new Blob([htmlContent], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${titleStr.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, [plotlyConfig, headerTitle, isDark]);
+
+    const handleDownloadSVG = useCallback(async () => {
+        if (!graphDiv) return;
+        const Plotly = await import("plotly.js-dist-min");
+        (Plotly as any).downloadImage(graphDiv, { format: "svg", filename: String(headerTitle || "chart").replace(/[^a-z0-9]/gi, '_').toLowerCase() });
+        setShowExportMenu(false);
+    }, [graphDiv, headerTitle]);
+
+    const handleDownloadPNG = useCallback(async () => {
+        if (!graphDiv) return;
+        const Plotly = await import("plotly.js-dist-min");
+        (Plotly as any).downloadImage(graphDiv, { format: "png", scale: 2, filename: String(headerTitle || "chart").replace(/[^a-z0-9]/gi, '_').toLowerCase() });
+        setShowExportMenu(false);
+    }, [graphDiv, headerTitle]);
+
     const accentColor = isTable ? "#00C9B1" : "#7C6FFF";
 
     const cardContent = (
@@ -278,6 +341,49 @@ export default function ChartCard({ block, index, groupId, isDark, onDrilldown, 
                     </div>
                 )}
 
+                {/* Export Dropdown */}
+                {!isTable && !isKpi && plotlyConfig && !isEmptyData && (
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowExportMenu(e => !e)}
+                            title="Export chart"
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all text-muted-foreground hover:text-foreground hover:bg-foreground/10"
+                            style={{
+                                border: showExportMenu ? "1px solid rgba(124,111,255,0.4)" : "1px solid var(--glass-border)",
+                                background: showExportMenu ? "rgba(124,111,255,0.12)" : "transparent",
+                                color: showExportMenu ? "#7C6FFF" : undefined,
+                            }}
+                        >
+                            <Download className="w-3 h-3" />
+                            <span>Export</span>
+                        </button>
+                        {showExportMenu && (
+                            <div
+                                className="absolute right-0 top-full mt-1.5 z-50 rounded-xl shadow-xl animate-fadein overflow-hidden"
+                                style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border-strong)", backdropFilter: "blur(16px)", minWidth: 170 }}
+                                onMouseLeave={() => setShowExportMenu(false)}
+                            >
+                                <p className="text-[9px] font-extrabold uppercase tracking-widest text-muted-foreground/40 px-3 pt-2 pb-1">Export As</p>
+                                {([
+                                    { label: "Interactive HTML", desc: "Fully interactive", color: "#00C9B1", onClick: () => { handleDownloadHTML(); setShowExportMenu(false); } },
+                                    { label: "SVG Vector", desc: "Scalable image", color: "#7C6FFF", onClick: handleDownloadSVG },
+                                    { label: "PNG Image", desc: "High-res 2x", color: "#FFB347", onClick: handleDownloadPNG },
+                                ] as const).map(opt => (
+                                    <button
+                                        key={opt.label}
+                                        onClick={opt.onClick}
+                                        className="flex flex-col items-start w-full px-3 py-2 text-left transition-colors hover:bg-foreground/5"
+                                    >
+                                        <span className="text-[11px] font-semibold" style={{ color: opt.color }}>{opt.label}</span>
+                                        <span className="text-[9px] text-muted-foreground">{opt.desc}</span>
+                                    </button>
+                                ))}
+                                <div className="pb-1" />
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Fullscreen */}
                 <button
                     onClick={() => setFullscreen(f => !f)}
@@ -313,11 +419,13 @@ export default function ChartCard({ block, index, groupId, isDark, onDrilldown, 
                             displayModeBar: true,
                             modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"],
                             displaylogo: false,
-                            toImageButtonOptions: { format: "png", scale: 2 },
+                            toImageButtonOptions: { format: "svg", scale: 1 },
                         }}
                         style={{ height: "100%", width: "100%", minHeight: 220 }}
                         useResizeHandler={true}
                         onClick={handleChartClick}
+                        onInitialized={(_figure: any, gd: any) => setGraphDiv(gd)}
+                        onUpdate={(_figure: any, gd: any) => setGraphDiv(gd)}
                     />
                 )}
 
