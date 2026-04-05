@@ -8,17 +8,23 @@ python-multipart==0.0.20
 # ── Database ───────────────────────────────────────────────────
 sqlalchemy[asyncio]==2.0.38
 asyncpg==0.30.0                   # Async PostgreSQL driver
+psycopg2-binary==2.9.10           # Required by LlamaIndex for Postgres
+pgvector==0.3.6                   # Python support for vector type
 
 # ── LLM APIs ──────────────────────────────────────────────────
-google-generativeai>=0.5.4        # Gemini Pro (Must be compatible with LlamaIndex)
-httpx==0.28.1                     # Together AI (SQLCoder) via REST
+google-generativeai>=0.5.4        # Gemini Pro
+groq                              # Groq API (Router, Analyst, QA, Refiner, Python agents)
+httpx==0.28.1                     # HTTP client
 
 # ── LlamaIndex + pgvector ─────────────────────────────────────
 llama-index-core==0.12.14
 llama-index-vector-stores-postgres==0.4.0
 llama-index-embeddings-gemini>=0.3.0
-psycopg2-binary==2.9.10           # Required by LlamaIndex for Postgres
-pgvector==0.3.6                   # Python support for vector type
+llama-index-llms-gemini
+
+# ── Data Science (Python Analyst Agent) ───────────────────────
+pandas                            # DataFrame processing in sandbox
+numpy                             # Numerical computation in sandbox
 
 # ── Embeddings ────────────────────────────────────────────────
 sentence-transformers==3.4.1
@@ -31,11 +37,8 @@ redis[asyncio]==5.2.1
 celery==5.4.0
 flower==2.0.1                     # Celery monitoring UI
 
+# ── File Processing (Document Indexer) ────────────────────────
+pypdf                             # PDF file reading
+
 # ── Utilities ─────────────────────────────────────────────────
 python-dotenv==1.0.1
-
-python-multipart
-pypdf
-
-llama-index-llms-gemini
-groq
