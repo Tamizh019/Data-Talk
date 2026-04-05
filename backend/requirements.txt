@@ -14,7 +14,8 @@ aiomysql                          # Async MySQL driver
 cryptography                      # Required for MySQL auth plugin
 
 # ── LLM APIs ──────────────────────────────────────────────────
-google-generativeai>=0.5.4        # Gemini Pro
+google-generativeai>=0.5.4        # Gemini Pro (Old SDK, needed by LlamaIndex)
+google-genai                      # Modern SDK (New, used by our Agents)
 groq                              # Groq API (Router, Analyst, QA, Refiner, Python agents)
 httpx==0.28.1                     # HTTP client
 
