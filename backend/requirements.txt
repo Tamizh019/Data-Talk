@@ -38,3 +38,4 @@ python-multipart
 pypdf
 
 llama-index-llms-gemini
+groq
