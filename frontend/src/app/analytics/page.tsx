@@ -45,7 +45,7 @@ function AnalyticsDashboard() {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch("http://localhost:8000/api/analytics");
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/analytics`);
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ detail: res.statusText }));
                 throw new Error(err.detail || "Failed to load analytics");

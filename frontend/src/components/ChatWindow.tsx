@@ -570,7 +570,7 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
         updateMessages(activeId, (p) => [...p, { role: "user", content: `*(Uploading ${file.name}...)*`, createdAt: Date.now() }]);
         try {
             const formData = new FormData(); formData.append("file", file);
-            const res = await fetch("http://localhost:8000/api/upload", { method: "POST", body: formData });
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/upload`, { method: "POST", body: formData });
             if (res.ok) updateMessages(activeId, (p) => [...p, { role: "assistant", content: `✅ **${file.name}** uploaded and indexed!`, createdAt: Date.now() }]);
             else throw new Error((await res.json()).detail || "Upload failed");
         } catch (error: any) {

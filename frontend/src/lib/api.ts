@@ -67,7 +67,7 @@ export async function streamChat(
 ): Promise<void> {
     const abortController = new AbortController();
     
-    const res = await fetch("http://localhost:8000/api/chat", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message, history }),
@@ -164,7 +164,7 @@ export async function streamChat(
 
 /** Connect to a new database by providing a PostgreSQL connection URL. */
 export async function connectDatabase(dbUrl: string): Promise<{ status: string; message: string }> {
-    const res = await fetch("http://localhost:8000/api/connect", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ db_url: dbUrl }),
@@ -183,7 +183,7 @@ export interface SchemaTable {
 
 /** Fetch current database schema */
 export async function fetchSchema(): Promise<{ tables: SchemaTable[] }> {
-    const res = await fetch("http://localhost:8000/api/schema", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/schema`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
     });
