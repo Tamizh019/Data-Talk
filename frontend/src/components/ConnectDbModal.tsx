@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase";
 
 interface ConnectDbModalProps {
     onClose: () => void;
-    onConnected: () => void;
+    onConnected: (data?: any) => void;
 }
 
 // ─── Database Provider Registry ──────────────────────────────────────────────
@@ -100,9 +100,9 @@ type DbId = (typeof DB_PROVIDERS)[number]["id"];
 // ─── Shared Input Style Helper ────────────────────────────────────────────────
 
 const mkInputStyle = (hasError: boolean) => ({
-    background: "var(--glass-bg-hover)",
-    border: `1px solid ${hasError ? "rgba(239,68,68,0.5)" : "var(--glass-border-strong)"}`,
-    color: "var(--color-foreground)",
+    background: "#f8fafc",
+    border: `1px solid ${hasError ? "rgba(239,68,68,0.5)" : "rgba(0,0,0,0.1)"}`,
+    color: "#1e293b",
     caretColor: "#7C6FFF",
 });
 
@@ -135,7 +135,7 @@ function InputField({
                         e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.1), inset 0 1px 0 rgba(255,255,255,0.04)";
                     }}
                     onBlur={(e) => {
-                        e.currentTarget.style.borderColor = hasError ? "rgba(239,68,68,0.5)" : "var(--glass-border-strong)";
+                        e.currentTarget.style.borderColor = hasError ? "rgba(239,68,68,0.5)" : "rgba(0,0,0,0.1)";
                         e.currentTarget.style.boxShadow = "none";
                     }}
                 />
@@ -191,7 +191,17 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
     const handleProviderSelect = (id: DbId) => {
         setSelectedDb(id);
         const provider = DB_PROVIDERS.find((p) => p.id === id);
-        if (provider) setPort(provider.defaultPort);
+        if (provider) {
+            setPort(provider.defaultPort);
+        }
+        
+        // Smart defaults
+        if (id === "mysql") {
+            setDbUser("root");
+        } else if (id === "postgresql") {
+            setDbUser("postgres");
+        }
+
         setStatus("idle");
         setErrorMsg("");
     };
@@ -250,7 +260,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
         setStatus("loading");
         setErrorMsg("");
         try {
-            await connectDatabase(url);
+            const result = await connectDatabase(url);
 
             if (authUser) {
                 await supabase
@@ -270,7 +280,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
 
             setStatus("success");
             setTimeout(() => {
-                onConnected();
+                onConnected(result);
                 onClose();
             }, 1200);
         } catch (err: unknown) {
@@ -294,12 +304,11 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
 
             {/* Modal Card */}
             <div
-                className="relative w-full mx-4 rounded-2xl overflow-hidden shadow-2xl animate-modal-in"
+                className="relative w-full mx-4 rounded-[20px] overflow-hidden shadow-2xl animate-modal-in backdrop-blur-xl bg-white/95 text-slate-800"
                 style={{
-                    maxWidth: 680,
-                    background: "var(--glass-bg)",
-                    border: "1px solid rgba(124,111,255,0.14)",
-                    boxShadow: "0 0 0 1px rgba(255,255,255,0.03), 0 24px 60px rgba(0,0,0,0.55), 0 0 40px rgba(124,111,255,0.06)",
+                    maxWidth: 580,
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    boxShadow: "0 24px 60px rgba(0,0,0,0.1), 0 0 40px rgba(124,111,255,0.06)",
                 }}
             >
                 {/* Top accent line */}
@@ -321,7 +330,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                             </svg>
                         </div>
                         <div>
-                            <h2 className="text-[18px] font-bold text-foreground tracking-tight">Connect to Database</h2>
+                            <h2 className="text-[18px] font-bold text-slate-800 tracking-tight">Connect to Database</h2>
                             <p className="text-[10px] font-semibold tracking-[0.18em] mt-0.5" style={{ color: "rgba(124,111,255,0.7)" }}>
                                 INFRASTRUCTURE INTEGRATION
                             </p>
@@ -330,9 +339,9 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                     <button
                         onClick={onClose}
                         className="w-8 h-8 rounded-lg flex items-center justify-center transition-all mt-0.5"
-                        style={{ background: "var(--glass-bg-hover)", color: "var(--color-muted-foreground)", border: "1px solid rgba(255,255,255,0.06)" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--glass-border-strong)"; e.currentTarget.style.color = "var(--color-foreground)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--glass-bg-hover)"; e.currentTarget.style.color = "var(--color-muted-foreground)"; }}
+                        style={{ background: "#f1f5f9", color: "#64748B", border: "1px solid rgba(0,0,0,0.05)" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#e2e8f0"; e.currentTarget.style.color = "#1e293b"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#64748B"; }}
                         title="Close"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -350,49 +359,57 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                         <div className="grid grid-cols-5 gap-3">
                             {DB_PROVIDERS.map((provider) => {
                                 const active = selectedDb === provider.id;
-                                const isComingSoon = provider.id !== "postgresql";
+                                const isComingSoon = provider.id !== "postgresql" && provider.id !== "mysql";
                                 return (
-                                    <div key={provider.id} className="relative w-full">
+                                    <div key={provider.id} className="relative w-full group">
                                         <button
                                             onClick={() => !isComingSoon && handleProviderSelect(provider.id)}
-                                            className={`w-full flex flex-col items-center justify-center gap-2.5 rounded-xl py-4 transition-all duration-200 ${isComingSoon ? "opacity-50 grayscale cursor-not-allowed" : ""}`}
+                                            className={`w-full flex flex-col items-center justify-center gap-2.5 rounded-[14px] py-4 transition-all duration-300 relative overflow-hidden`}
                                             disabled={isComingSoon}
                                             style={{
-                                                background: active ? "rgba(124,111,255,0.1)" : "var(--glass-bg-hover)",
+                                                background: active ? "rgba(124,111,255,0.08)" : "transparent",
                                                 border: active
-                                                    ? "1px solid rgba(124,111,255,0.55)"
-                                                    : "1px solid rgba(255,255,255,0.06)",
-                                                boxShadow: active ? "0 0 18px rgba(124,111,255,0.15), inset 0 1px 0 rgba(124,111,255,0.1)" : "none",
+                                                    ? "1.5px solid #7C6FFF"
+                                                    : "1.5px solid rgba(0,0,0,0.06)",
+                                                boxShadow: active ? "0 4px 12px rgba(124,111,255,0.15)" : "none",
                                                 cursor: isComingSoon ? "not-allowed" : "pointer",
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!active && !isComingSoon) {
-                                                    e.currentTarget.style.background = "var(--glass-border)";
-                                                    e.currentTarget.style.borderColor = "var(--glass-border-strong)";
+                                                    e.currentTarget.style.background = "rgba(0,0,0,0.02)";
+                                                    e.currentTarget.style.borderColor = "rgba(0,0,0,0.15)";
                                                 }
                                             }}
                                             onMouseLeave={(e) => {
                                                 if (!active && !isComingSoon) {
-                                                    e.currentTarget.style.background = "var(--glass-bg-hover)";
-                                                    e.currentTarget.style.borderColor = "var(--glass-border)";
+                                                    e.currentTarget.style.background = "transparent";
+                                                    e.currentTarget.style.borderColor = "rgba(0,0,0,0.06)";
                                                 }
                                             }}
                                         >
-                                            <div className="opacity-80">
-                                                {provider.icon(active)}
+                                            <div className={`transition-all duration-300 ${isComingSoon ? "opacity-30 blur-[1px] grayscale" : active ? "scale-110" : "grayscale opacity-70 hover:grayscale-0 hover:opacity-100"}`}>
+                                                {provider.icon(active || !isComingSoon)}
                                             </div>
                                             <span
-                                                className="text-[9px] font-bold tracking-widest mt-1"
-                                                style={{ color: active ? "var(--color-foreground)" : "var(--color-muted-foreground)" }}
+                                                className={`text-[9.5px] font-bold tracking-widest mt-1 ${isComingSoon ? "opacity-40" : ""}`}
+                                                style={{ color: active ? "#7C6FFF" : "#64748B" }}
                                             >
                                                 {provider.label}
                                             </span>
+                                            
+                                            {/* Locked Overlay */}
+                                            {isComingSoon && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/20 backdrop-blur-[1px] z-10 transition-opacity">
+                                                    <div className="bg-slate-800/90 p-1.5 rounded-full shadow-sm mb-1">
+                                                        <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                                            <path d="M7 11V7a5 5 0 0110 0v4" />
+                                                        </svg>
+                                                    </div>
+                                                    <span className="text-[7.5px] font-bold text-slate-700 tracking-wider bg-white/90 px-1.5 py-0.5 rounded shadow-sm">COMING SOON</span>
+                                                </div>
+                                            )}
                                         </button>
-                                        {isComingSoon && (
-                                            <div className="absolute top-1.5 right-1.5 bg-[rgba(13,13,22,0.9)] border border-white/10 px-1.5 py-[2px] rounded text-[6px] font-bold tracking-widest text-[#7C6FFF] uppercase shadow-sm pointer-events-none">
-                                                Soon
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })}
@@ -401,8 +418,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
 
                     {/* Tab Switcher */}
                     <div
-                        className="flex gap-1 p-1 rounded-xl"
-                        style={{ background: "var(--glass-bg-hover)", border: "1px solid rgba(255,255,255,0.05)" }}
+                        className="flex gap-1 p-1 rounded-xl bg-slate-100/80 border border-slate-200/50"
                     >
                         {(["parameters", "uri"] as const).map((tab) => (
                             <button
@@ -410,10 +426,10 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                                 onClick={() => { setConnectionType(tab); setStatus("idle"); setErrorMsg(""); }}
                                 className="flex-1 py-2 text-[11px] font-semibold rounded-lg transition-all duration-200 tracking-wide"
                                 style={{
-                                    background: connectionType === tab ? "rgba(124,111,255,0.18)" : "transparent",
-                                    color: connectionType === tab ? "var(--color-foreground)" : "var(--color-muted-foreground)",
-                                    border: connectionType === tab ? "1px solid rgba(124,111,255,0.25)" : "1px solid transparent",
-                                    boxShadow: connectionType === tab ? "0 2px 10px rgba(124,111,255,0.1)" : "none",
+                                    background: connectionType === tab ? "#fff" : "transparent",
+                                    color: connectionType === tab ? "#7C6FFF" : "#64748B",
+                                    border: connectionType === tab ? "1px solid rgba(0,0,0,0.05)" : "1px solid transparent",
+                                    boxShadow: connectionType === tab ? "0 2px 8px rgba(0,0,0,0.05)" : "none",
                                 }}
                             >
                                 {tab === "parameters" ? "Parameters" : "Connection URI"}
@@ -500,7 +516,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                                             e.currentTarget.style.boxShadow = "0 0 0 3px rgba(124,111,255,0.1), inset 0 1px 0 rgba(255,255,255,0.04)";
                                         }}
                                         onBlur={(e) => {
-                                            e.currentTarget.style.borderColor = hasError ? "rgba(239,68,68,0.5)" : "var(--glass-border-strong)";
+                                            e.currentTarget.style.borderColor = hasError ? "rgba(239,68,68,0.5)" : "rgba(0,0,0,0.1)";
                                             e.currentTarget.style.boxShadow = "none";
                                         }}
                                     />
@@ -550,7 +566,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
 
                 {/* ── Footer ─────────────────────────────────────────── */}
                 <div
-                    className="px-7 py-5 flex items-center justify-between border-t border-border/50"
+                    className="px-7 py-5 flex items-center justify-between border-t border-slate-200/50 bg-slate-50/50"
                 >
                     <div className="flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: currentProvider.id === "postgresql" ? "#336791" : currentProvider.id === "mysql" ? "#F29111" : currentProvider.id === "sqlite" ? "#0F80CC" : currentProvider.id === "mongodb" ? "#4FAA41" : "#D9371D" }} />
@@ -564,12 +580,12 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                             onClick={onClose}
                             className="px-5 py-2.5 rounded-xl text-[12px] font-semibold tracking-wide transition-all duration-200"
                             style={{
-                                background: "var(--glass-bg-hover)",
-                                color: "var(--color-muted-foreground)",
-                                border: "1px solid rgba(255,255,255,0.08)",
+                                background: "#f1f5f9",
+                                color: "#64748B",
+                                border: "1px solid rgba(0,0,0,0.06)",
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--glass-border-strong)"; e.currentTarget.style.color = "var(--color-foreground)"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--glass-bg-hover)"; e.currentTarget.style.color = "var(--color-muted-foreground)"; }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "#e2e8f0"; e.currentTarget.style.color = "#1e293b"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#64748B"; }}
                         >
                             CANCEL
                         </button>

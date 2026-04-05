@@ -29,7 +29,7 @@ async def query_documents(user_query: str) -> str:
             )
 
         # Initialize explicit LLM to ensure LlamaIndex uses our set model
-        llm = Gemini(model="models/" + settings.visualizer_model, api_key=settings.gemini_api_key)
+        llm = Gemini(model=settings.visualizer_model, api_key=settings.gemini_api_key)
 
         query_engine = _doc_index.as_query_engine(
             similarity_top_k=5,

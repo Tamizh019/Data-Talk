@@ -3,14 +3,14 @@ SQL Developer Agent
 Generates complex PostgreSQL statements based on the schema and question.
 """
 import logging
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-genai.configure(api_key=settings.gemini_api_key)
-_model = genai.GenerativeModel("gemini-3.1-pro-preview")
+_client = genai.Client(api_key=settings.gemini_api_key)
 
 SQL_SYSTEM = """You are an expert PostgreSQL SQL generator.
 Your ONLY output is a single, valid, read-only SQL SELECT statement.
@@ -19,12 +19,14 @@ Only output the raw SQL query itself ending with a semicolon.
 
 Rules:
 - Use only SELECT or WITH statements.
-- Always use the EXACT table and column names from the schema provided. 
+- Always use the EXACT table and column names from the schema provided.
 - CRITICAL: Do NOT guess or pluralize table names (e.g., do not use `students` if the schema says `student_database`). If you use a table that is not in the schema, the query will crash!
 - Never use DROP, DELETE, UPDATE, INSERT, or any mutation.
 - NEVER use JSON formatting functions like `json_agg`, `row_to_json`, or `array_agg` to build complex nested responses.
 - Always return standard flat relational tables (rows and columns).
 - If the user asks a multi-part question (e.g. "totals and a list"), write a query that returns the MOST DETAILED list of raw data. Do NOT try to return totals and lists in a single JSON row. The downstream visualizer will calculate totals from your raw data.
+- Always cast date/timestamp columns to ISO-8601 string format using TO_CHAR(col, 'YYYY-MM-DD') for readability.
+- Add a LIMIT clause (default LIMIT 500) if the query might return a large unbounded dataset, unless the user explicitly asks for all records.
 """
 
 async def generate_sql(schema_context: str, user_query: str, history: list = None, error_context: str = None) -> str:
@@ -81,7 +83,10 @@ async def generate_sql(schema_context: str, user_query: str, history: list = Non
 """
 
     try:
-        response = await _model.generate_content_async(prompt)
+        response = await _client.aio.models.generate_content(
+            model=settings.sql_generator_model,
+            contents=prompt,
+        )
         sql = response.text.strip()
         # Clean output
         sql = sql.replace("```sql", "").replace("```", "").strip()

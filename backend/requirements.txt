@@ -10,6 +10,8 @@ sqlalchemy[asyncio]==2.0.38
 asyncpg==0.30.0                   # Async PostgreSQL driver
 psycopg2-binary==2.9.10           # Required by LlamaIndex for Postgres
 pgvector==0.3.6                   # Python support for vector type
+aiomysql                          # Async MySQL driver
+cryptography                      # Required for MySQL auth plugin
 
 # ── LLM APIs ──────────────────────────────────────────────────
 google-generativeai>=0.5.4        # Gemini Pro

@@ -21,7 +21,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Runs on startup: index the DB schema into Qdrant."""
+    """Runs on startup: index the DB schema into Pgvector."""
     logger.info("Data-Talk starting up...")
     try:
         from app.core.schema_indexer import schema_indexer
@@ -105,14 +105,28 @@ async def connect_database(payload: dict):
         db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
         db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
 
-    if not db_url.startswith("postgresql+asyncpg://"):
+    # Accept plain mysql:// and convert to aiomysql driver
+    if db_url.startswith("mysql://"):
+        db_url = db_url.replace("mysql://", "mysql+aiomysql://", 1)
+
+    if not (db_url.startswith("postgresql+asyncpg://") or db_url.startswith("mysql+aiomysql://")):
         raise HTTPException(
             status_code=400,
-            detail="Invalid URL. Use format: postgresql://user:pass@host:port/dbname"
+            detail="Invalid URL. Supported formats: postgresql://... or mysql://..."
         )
 
     # --- Supabase Options Fix & Schema Extraction ---
     target_schema = "public"
+    
+    # If MySQL, the "schema" is actually the database name in the path
+    if db_url.startswith("mysql+aiomysql://"):
+        try:
+            db_name_part = db_url.split("?")[0].split("/")[-1]
+            if db_name_part:
+                target_schema = db_name_part
+        except Exception:
+            pass
+
     if "?" in db_url:
         base, query = db_url.split("?", 1)
         params = urllib.parse.parse_qs(query)
@@ -163,7 +177,21 @@ async def connect_database(payload: dict):
             pass # successful connect validates credentials
 
         await schema_indexer.build_schema_index()
-        return {"status": "connected", "message": "Database connected and schema indexed successfully"}
+
+        # Generate schema-aware starter suggestions for the user
+        suggestions = {}
+        try:
+            from app.agents.suggestion_agent import generate_schema_suggestions
+            schema_context = await schema_indexer.get_schema_context("overview of all tables")
+            suggestions = await generate_schema_suggestions(schema_context)
+        except Exception as suggestion_err:
+            logger.warning(f"Suggestion agent failed (non-critical): {suggestion_err}")
+
+        return {
+            "status": "connected",
+            "message": "Database connected and schema indexed successfully",
+            "suggestions": suggestions,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Connection failed: {str(e)}")
 

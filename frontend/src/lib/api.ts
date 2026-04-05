@@ -162,8 +162,8 @@ export async function streamChat(
     }
 }
 
-/** Connect to a new database by providing a PostgreSQL connection URL. */
-export async function connectDatabase(dbUrl: string): Promise<{ status: string; message: string }> {
+/** Connect to a new database by providing a PostgreSQL/MySQL connection URL. */
+export async function connectDatabase(dbUrl: string): Promise<{ status: string; message: string; suggestions?: { basic?: string[]; analytical?: string[]; metric?: string[] } }> {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/connect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

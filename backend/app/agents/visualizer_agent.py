@@ -7,14 +7,14 @@ Supports 20+ chart types with smart, data-driven selection.
 """
 import json
 import logging
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-genai.configure(api_key=settings.gemini_api_key)
-_model = genai.GenerativeModel(settings.visualizer_model)
+_client = genai.Client(api_key=settings.gemini_api_key)
 
 # ── Brand palette ────────────────────────────────────────────────────────────
 PALETTE = ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1","#96CEB4","#A855F7","#F59E0B","#EC4899"]
@@ -208,15 +208,15 @@ IMPORTANT: Every Plotly chart config MUST have exactly two keys: "data" (array o
 
 ## LAYOUT TEMPLATE (apply to EVERY Plotly chart)
 {
-  "template": "plotly_dark",
-  "paper_bgcolor": "transparent",
-  "plot_bgcolor": "transparent",
-  "font": {"family": "Inter, system-ui, sans-serif", "color": "#94a3b8"},
+  "template": "plotly",
+  "paper_bgcolor": "rgba(0,0,0,0)",
+  "plot_bgcolor": "rgba(0,0,0,0)",
+  "font": {"family": "Inter, system-ui, sans-serif", "color": "#334155"},
   "margin": {"l": 50, "r": 30, "t": 40, "b": 50},
   "colorway": ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1","#96CEB4","#A855F7"],
-  "hoverlabel": {"bgcolor": "rgba(13,13,22,0.95)", "bordercolor": "rgba(124,111,255,0.3)", "font": {"color": "#e2e8f0", "size": 12}},
-  "xaxis": {"gridcolor": "rgba(255,255,255,0.04)", "zerolinecolor": "rgba(255,255,255,0.08)"},
-  "yaxis": {"gridcolor": "rgba(255,255,255,0.04)", "zerolinecolor": "rgba(255,255,255,0.08)"}
+  "hoverlabel": {"bgcolor": "rgba(255,255,255,0.95)", "bordercolor": "rgba(124,111,255,0.3)", "font": {"color": "#1e293b", "size": 12}},
+  "xaxis": {"gridcolor": "rgba(0,0,0,0.06)", "zerolinecolor": "rgba(0,0,0,0.12)"},
+  "yaxis": {"gridcolor": "rgba(0,0,0,0.06)", "zerolinecolor": "rgba(0,0,0,0.12)"}
 }
 
 ## META FIELD (required on every plotly chart for frontend cross-filtering)
@@ -273,7 +273,19 @@ async def generate_charts(
     if not rows or len(rows) == 0:
         return None
 
-    sample_rows = rows[:25]
+    # Single-row result: just emit KPI cards, no charts needed
+    if len(rows) == 1:
+        kpis = []
+        for col, val in rows[0].items():
+            if isinstance(val, (int, float)):
+                kpis.append({
+                    "library": "kpi",
+                    "title": col.replace("_", " ").title(),
+                    "config": {"value": val, "formatted_value": str(val), "trend_direction": "neutral"}
+                })
+        return kpis if kpis else None
+
+    sample_rows = rows[:50]
 
     # ── Phase 1: Compute column statistics ────────────────────────────────
     col_stats = {}
@@ -299,6 +311,10 @@ async def generate_charts(
     # ── Phase 1b: Detect data patterns ────────────────────────────────────
     patterns = detect_data_patterns(columns, rows, col_stats)
 
+    # Determine min/max chart count based on data complexity
+    min_charts = 1 if row_count <= 3 else (2 if row_count <= 10 else 4)
+    max_charts = 7
+
     prompt = f"""### User's Business Question
 "{user_question}"
 
@@ -315,12 +331,13 @@ async def generate_charts(
 ### Sample Data (first {len(sample_rows)} rows)
 {json.dumps(sample_rows, indent=2, default=str)}
 
-Generate 4-7 DIVERSE dashboard charts for this data. Include KPIs first, then use the detected patterns to choose the best chart types. Include meta field on every chart."""
+Generate {min_charts}-{max_charts} DIVERSE dashboard charts for this data. Include KPIs first, then use the detected patterns to choose the best chart types. Include meta field on every chart."""
 
     try:
-        response = await _model.generate_content_async(
-            f"{VISUALIZER_SYSTEM}\n\n{prompt}",
-            generation_config=genai.GenerationConfig(
+        response = await _client.aio.models.generate_content(
+            model=settings.visualizer_model,
+            contents=f"{VISUALIZER_SYSTEM}\n\n{prompt}",
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.4,
             ),

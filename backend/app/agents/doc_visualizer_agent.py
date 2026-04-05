@@ -6,14 +6,14 @@ Document Visualizer Agent (Gemini)
 """
 import json
 import logging
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-genai.configure(api_key=settings.gemini_api_key)
-_model = genai.GenerativeModel(settings.visualizer_model)
+_client = genai.Client(api_key=settings.gemini_api_key)
 
 # ── Phase 1: Extract structured data from document ──────────────────────────
 
@@ -70,7 +70,7 @@ Return a JSON array of objects. Each object MUST have `library` and `config` fie
    Config MUST have "data" (array of traces) and "layout" (object).
    - Types: bar, horizontal_bar, line, area, pie, donut, radar (scatterpolar), treemap, sunburst, funnel, histogram, box
    - Format: `{ "library": "plotly", "chart_type": "bar", "title": "...", "config": { "data": [...], "layout": {...} } }`
-   - Layout template: {"template": "plotly_dark", "paper_bgcolor": "transparent", "plot_bgcolor": "transparent", "font": {"family": "Inter, system-ui, sans-serif", "color": "#94a3b8"}, "margin": {"l": 40, "r": 30, "t": 10, "b": 40}, "colorway": ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1"]}
+   - Layout template: {"template": "plotly", "paper_bgcolor": "rgba(0,0,0,0)", "plot_bgcolor": "rgba(0,0,0,0)", "font": {"family": "Inter, system-ui, sans-serif", "color": "#334155"}, "margin": {"l": 40, "r": 30, "t": 10, "b": 40}, "colorway": ["#7C6FFF","#00C9B1","#FF6B6B","#FFB347","#4ECDC4","#45B7D1"]}
 
 2. Data Table (`"library": "table"`)
    Best for dense lists of facts (work experience, detailed findings).
@@ -105,9 +105,10 @@ Document content:
 
 Extract the most chart-worthy structured data as JSON:"""
 
-        extract_response = await _model.generate_content_async(
-            f"{EXTRACT_SYSTEM}\n\n{extract_prompt}",
-            generation_config=genai.GenerationConfig(
+        extract_response = await _client.aio.models.generate_content(
+            model=settings.visualizer_model,
+            contents=f"{EXTRACT_SYSTEM}\n\n{extract_prompt}",
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.1,
             ),
@@ -124,6 +125,15 @@ Extract the most chart-worthy structured data as JSON:"""
 
         logger.info(f"[DocVisualizer] Phase 1 extracted doc_type: {structured_data.get('doc_type', 'unknown')}")
 
+        # Guard: if no numeric/list data found, don't attempt chart generation
+        import json as _json
+        structured_str = _json.dumps(structured_data)
+        has_numeric = any(isinstance(v, (int, float)) for v in _json.loads(structured_str).values() if not isinstance(v, (dict, list)))
+        has_lists = any(isinstance(v, list) and len(v) > 0 for v in structured_data.values())
+        if not has_numeric and not has_lists:
+            logger.warning("[DocVisualizer] No chart-worthy data found in document (pure prose). Skipping visualization.")
+            return []
+
         # ── Phase 2: Generate Plotly charts from structured data ────────────────
         viz_prompt = f"""User request: "{user_query}"
 
@@ -132,9 +142,10 @@ Structured document data:
 
 Generate the best 3-5 Plotly dashboard configs for this data:"""
 
-        viz_response = await _model.generate_content_async(
-            f"{VISUALIZER_SYSTEM}\n\n{viz_prompt}",
-            generation_config=genai.GenerationConfig(
+        viz_response = await _client.aio.models.generate_content(
+            model=settings.visualizer_model,
+            contents=f"{VISUALIZER_SYSTEM}\n\n{viz_prompt}",
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 temperature=0.3,
             ),

@@ -21,6 +21,7 @@ from app.agents.visualizer_agent import generate_charts
 from app.agents.analyst_agent import explain_results, chat_fallback
 from app.agents.python_analyst_agent import run_python_sandbox
 from app.agents.refiner_agent import format_response
+from app.agents.error_explainer_agent import explain_error
 
 logger = logging.getLogger(__name__)
 
@@ -219,10 +220,13 @@ async def run_pipeline(user_query: str, history: list) -> AsyncGenerator[dict, N
 
     except ValueError as e:
         logger.warning(f"Validation error: {e}")
-        yield {"event": "error", "data": {"message": str(e)}}
+        friendly = await explain_error(user_query, str(e))
+        yield {"event": "error", "data": {"message": friendly}}
     except RuntimeError as e:
         logger.error(f"Execution error: {e}")
-        yield {"event": "error", "data": {"message": str(e)}}
+        friendly = await explain_error(user_query, str(e))
+        yield {"event": "error", "data": {"message": friendly}}
     except Exception as e:
         logger.exception(f"Unexpected error in orchestrator: {e}")
-        yield {"event": "error", "data": {"message": f"An unexpected error occurred: {str(e)}"}}
+        friendly = await explain_error(user_query, str(e))
+        yield {"event": "error", "data": {"message": friendly}}

@@ -15,17 +15,26 @@ def get_db_engine():
     global _engine
     if _engine is None:
         settings = get_settings()
+        is_postgres = settings.target_db_url.startswith("postgresql")
+
+        connect_args = {}
+        execution_options = {}
+
+        if is_postgres:
+            connect_args = {
+                "command_timeout": 10,
+                "server_settings": {"search_path": settings.target_schema}
+            }
+            execution_options = {"postgresql_readonly": True}
+        # For MySQL, we omit these Postgres-specific args
+
         _engine = create_async_engine(
             settings.target_db_url,
             pool_pre_ping=True,
             pool_size=5,
             max_overflow=10,
-            connect_args={
-                "command_timeout": 10,
-                "server_settings": {"search_path": settings.target_schema}
-            },
-            # Enforce read-only at connection level for extra safety
-            execution_options={"postgresql_readonly": True},
+            connect_args=connect_args,
+            execution_options=execution_options,
         )
     return _engine
 
@@ -68,17 +77,23 @@ async def get_schema_info() -> str:
         c.is_nullable,
         c.column_default
     FROM information_schema.tables t
-    JOIN information_schema.columns c ON t.table_name = c.table_name
+    JOIN information_schema.columns c ON t.table_name = c.table_name AND t.table_schema = c.table_schema
     WHERE t.table_schema = :schema
       AND t.table_type = 'BASE TABLE'
     ORDER BY t.table_name, c.ordinal_position;
     """)
     # For schema discovery we use a regular (non-read-only) connection
     settings = get_settings()
+    is_postgres = settings.target_db_url.startswith("postgresql")
+    
+    connect_args = {}
+    if is_postgres:
+        connect_args = {"server_settings": {"search_path": settings.target_schema}}
+
     engine = create_async_engine(
         settings.target_db_url, 
         pool_pre_ping=True,
-        connect_args={"server_settings": {"search_path": settings.target_schema}}
+        connect_args=connect_args
     )
 
     try:

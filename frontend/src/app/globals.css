@@ -24,6 +24,11 @@ html, body {
   overflow: hidden;
 }
 
+/* Auth pages need scroll */
+body:has(.auth-scroll-page) {
+  overflow: auto;
+}
+
 /* ─────────────────────────────────────────
    Scrollbar
 ───────────────────────────────────────── */

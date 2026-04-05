@@ -190,7 +190,7 @@ function SchemaDrawer({
 
 // ── Main Chat Layout ───────────────────────────────────────────────────────
 function ChatLayout() {
-    const { activeConversation } = useChat();
+    const { activeConversation, activeId, updateMessages } = useChat();
     const { user, signOut } = useAuth();
     const { theme, setTheme } = useTheme();
     const supabase = useRef(createClient()).current;
@@ -391,7 +391,28 @@ function ChatLayout() {
             {showConnectModal && (
                 <ConnectDbModal
                     onClose={() => setShowConnectModal(false)}
-                    onConnected={() => setDbConnected(true)}
+                    onConnected={(data) => {
+                        setDbConnected(true);
+                        if (data && data.suggestions && data.suggestions.categories && activeId) {
+                            const sug = data.suggestions;
+                            let prompt = `✅ **Database Connected Successfully!**\n\n${sug.greeting || "Here are some things you can ask me to get started:"}\n\nFollow-ups:\n`;
+                            
+                            sug.categories.forEach((cat: any) => {
+                                cat.questions.forEach((q: string) => {
+                                    prompt += `- ${q}\n`;
+                                });
+                            });
+                            
+                            updateMessages(activeId, (prev: any[]) => [
+                                ...prev,
+                                {
+                                    role: "assistant",
+                                    content: prompt,
+                                    createdAt: Date.now()
+                                }
+                            ]);
+                        }
+                    }}
                 />
             )}
         </div>

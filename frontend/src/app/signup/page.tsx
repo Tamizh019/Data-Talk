@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 /* ─── Shared background blobs ─── */
@@ -17,7 +16,6 @@ function Background() {
                 className="absolute -bottom-1/4 -right-1/4 w-[700px] h-[700px] rounded-full"
                 style={{ background: "radial-gradient(circle, rgba(0,201,177,0.14) 0%, transparent 65%)", filter: "blur(70px)" }}
             />
-            {/* Grid */}
             <div
                 className="absolute inset-0"
                 style={{
@@ -34,80 +32,64 @@ function BrandPanel() {
     return (
         <div
             className="hidden lg:flex flex-col relative overflow-hidden w-[480px] flex-shrink-0"
-            style={{
-                background: "linear-gradient(155deg, #0F0C29 0%, #1a163d 40%, #0d1f2d 100%)",
-            }}
+            style={{ background: "linear-gradient(155deg, #0F0C29 0%, #1a163d 40%, #0d1f2d 100%)" }}
         >
-            {/* Blobs */}
             <div className="absolute top-[-80px] left-[-80px] w-[400px] h-[400px] rounded-full" style={{ background: "radial-gradient(circle, rgba(124,111,255,0.3) 0%, transparent 70%)", filter: "blur(60px)" }} />
             <div className="absolute bottom-[-80px] right-[-60px] w-[350px] h-[350px] rounded-full" style={{ background: "radial-gradient(circle, rgba(0,201,177,0.25) 0%, transparent 70%)", filter: "blur(60px)" }} />
-
-            {/* Grid lines */}
             <div className="absolute inset-0" style={{
                 backgroundImage: "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
                 backgroundSize: "40px 40px",
             }} />
 
             <div className="relative z-10 flex flex-col h-full px-14 py-12">
-                {/* Logo top */}
                 <div className="flex items-center gap-3 mb-auto">
                     <img src="/logo.png" alt="Data-Talk" className="w-9 h-9 object-contain" />
                     <span className="text-white font-bold text-[17px] tracking-tight">Data-Talk</span>
                 </div>
 
-                {/* Center quote */}
                 <div className="mb-auto">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-8" style={{ background: "rgba(124,111,255,0.15)", border: "1px solid rgba(124,111,255,0.25)" }}>
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#7C6FFF]" style={{ boxShadow: "0 0 6px #7C6FFF" }} />
-                        <span className="text-[11px] font-semibold text-[#b0a8ff] tracking-widest uppercase">AI-Powered Analytics</span>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-8" style={{ background: "rgba(0,201,177,0.12)", border: "1px solid rgba(0,201,177,0.25)" }}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#00C9B1]" style={{ boxShadow: "0 0 6px #00C9B1" }} />
+                        <span className="text-[11px] font-semibold text-[#7ffaf1] tracking-widest uppercase">Start Free Today</span>
                     </div>
 
                     <h2 className="text-[38px] font-bold leading-[1.18] text-white mb-6 tracking-tight">
-                        Turn your data<br />
-                        <span style={{ background: "linear-gradient(90deg, #7C6FFF, #00C9B1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                            into intelligence.
+                        Your data is waiting<br />
+                        <span style={{ background: "linear-gradient(90deg, #00C9B1, #7C6FFF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                            to talk back.
                         </span>
                     </h2>
 
                     <p className="text-[15px] text-white/50 leading-relaxed max-w-[320px]">
-                        Ask questions in plain English. Get instant SQL, charts, and insights from your database — no code required.
+                        Join teams that are already using AI to explore, query, and visualize their databases in seconds.
                     </p>
 
-                    {/* Feature pills */}
-                    <div className="flex flex-wrap gap-2.5 mt-10">
-                        {["Natural Language SQL", "Auto Visualization", "Schema-Aware AI"].map(f => (
-                            <div key={f} className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-medium text-white/70" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                                <svg className="w-3 h-3 text-[#00C9B1]" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                                {f}
+                    {/* Steps */}
+                    <div className="mt-12 space-y-5">
+                        {[
+                            { n: "01", title: "Connect your database", desc: "MySQL, PostgreSQL, SQLite, and more." },
+                            { n: "02", title: "Ask in plain English", desc: "No SQL experience required." },
+                            { n: "03", title: "Get charts & insights", desc: "Auto-generated visualizations instantly." },
+                        ].map(step => (
+                            <div key={step.n} className="flex items-start gap-4">
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-[#00C9B1] flex-shrink-0 mt-0.5" style={{ background: "rgba(0,201,177,0.12)", border: "1px solid rgba(0,201,177,0.25)" }}>{step.n}</div>
+                                <div>
+                                    <p className="text-[13px] font-semibold text-white/80">{step.title}</p>
+                                    <p className="text-[12px] text-white/40 mt-0.5">{step.desc}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Bottom integrations */}
                 <div className="mt-auto pt-10" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                    <p className="text-[11px] font-semibold text-white/30 uppercase tracking-widest mb-4">Seamlessly Connects To</p>
-                    <div className="flex flex-wrap gap-2.5">
-                        {[
-                            { name: "PostgreSQL", color: "#336791" }, 
-                            { name: "MySQL", color: "#F29111" }, 
-                            { name: "SQLite", color: "#003B57" }
-                        ].map(db => (
-                            <div key={db.name} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-medium text-white/70" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: db.color }} />
-                                {db.name}
-                            </div>
-                        ))}
-                    </div>
+                    <p className="text-[12px] text-white/35">Free plan · No credit card required · Starts in 60 seconds</p>
                 </div>
             </div>
         </div>
     );
 }
 
-/* ─── Google icon ─── */
 function GoogleIcon() {
     return (
         <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
@@ -119,7 +101,6 @@ function GoogleIcon() {
     );
 }
 
-/* ─── GitHub icon ─── */
 function GithubIcon() {
     return (
         <svg className="w-4 h-4 text-slate-800 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
@@ -128,7 +109,6 @@ function GithubIcon() {
     );
 }
 
-/* ─── Spinner ─── */
 function Spinner() {
     return (
         <svg className="w-4 h-4 animate-spin text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
@@ -138,15 +118,11 @@ function Spinner() {
     );
 }
 
-/* ─────────────────────────────────────
-   LOGIN CONTENT
-───────────────────────────────────── */
-function LoginContent() {
+export default function SignupPage() {
     const { signInWithGoogle, signInWithGithub } = useAuth();
     const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
     const [showPw, setShowPw] = useState(false);
-    const searchParams = useSearchParams();
-    const error = searchParams.get("error");
+    const [agreed, setAgreed] = useState(false);
 
     const handleGoogle = async () => { setLoadingProvider("google"); await signInWithGoogle(); };
     const handleGithub = async () => { setLoadingProvider("github"); await signInWithGithub(); };
@@ -167,19 +143,9 @@ function LoginContent() {
                 <div className="w-full max-w-[400px] animate-fadein">
                     {/* Header */}
                     <div className="mb-8">
-                        <h1 className="text-[26px] font-bold text-slate-900 tracking-tight mb-1.5">Welcome back</h1>
-                        <p className="text-[14px] text-slate-500">Sign in to your Data-Talk workspace.</p>
+                        <h1 className="text-[26px] font-bold text-slate-900 tracking-tight mb-1.5">Create your account</h1>
+                        <p className="text-[14px] text-slate-500">Start querying your data in minutes. Free forever.</p>
                     </div>
-
-                    {/* Error */}
-                    {error && (
-                        <div className="mb-6 px-4 py-3 rounded-xl text-[13px] font-medium bg-red-50 border border-red-100 text-red-600 flex items-center gap-2">
-                            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Authentication failed. Please try again.
-                        </div>
-                    )}
 
                     {/* OAuth */}
                     <div className="grid grid-cols-2 gap-3 mb-7">
@@ -209,9 +175,30 @@ function LoginContent() {
                     </div>
 
                     {/* Form */}
-                    <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+                    <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[12px] font-semibold text-slate-600 mb-2">First name</label>
+                                <input
+                                    type="text"
+                                    autoComplete="given-name"
+                                    placeholder="John"
+                                    className="w-full px-4 py-3 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[12px] font-semibold text-slate-600 mb-2">Last name</label>
+                                <input
+                                    type="text"
+                                    autoComplete="family-name"
+                                    placeholder="Doe"
+                                    className="w-full px-4 py-3 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
+                                />
+                            </div>
+                        </div>
+
                         <div>
-                            <label className="block text-[12px] font-semibold text-slate-600 mb-2">Email</label>
+                            <label className="block text-[12px] font-semibold text-slate-600 mb-2">Work email</label>
                             <input
                                 type="email"
                                 autoComplete="email"
@@ -221,15 +208,12 @@ function LoginContent() {
                         </div>
 
                         <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="text-[12px] font-semibold text-slate-600">Password</label>
-                                <a href="#" className="text-[12px] font-medium text-[#6C5FE6] hover:text-[#5040d0] transition-colors">Forgot password?</a>
-                            </div>
+                            <label className="block text-[12px] font-semibold text-slate-600 mb-2">Password</label>
                             <div className="relative">
                                 <input
                                     type={showPw ? "text" : "password"}
-                                    autoComplete="current-password"
-                                    placeholder="••••••••"
+                                    autoComplete="new-password"
+                                    placeholder="Min. 8 characters"
                                     className="w-full px-4 py-3 pr-12 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
                                 />
                                 <button
@@ -246,40 +230,60 @@ function LoginContent() {
                             </div>
                         </div>
 
+                        {/* Agree to terms */}
+                        <label className="flex items-start gap-3 cursor-pointer group mt-2">
+                            <div className="relative mt-0.5">
+                                <input
+                                    type="checkbox"
+                                    checked={agreed}
+                                    onChange={e => setAgreed(e.target.checked)}
+                                    className="sr-only"
+                                />
+                                <div
+                                    className="w-4 h-4 rounded-[5px] border-2 flex items-center justify-center transition-all flex-shrink-0"
+                                    style={{
+                                        borderColor: agreed ? "#6C5FE6" : "#cbd5e1",
+                                        background: agreed ? "#6C5FE6" : "white",
+                                    }}
+                                >
+                                    {agreed && (
+                                        <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    )}
+                                </div>
+                            </div>
+                            <span className="text-[13px] text-slate-500 leading-relaxed">
+                                I agree to the{" "}
+                                <a href="#" className="text-[#6C5FE6] font-semibold hover:underline">Terms of Service</a>
+                                {" "}and{" "}
+                                <a href="#" className="text-[#6C5FE6] font-semibold hover:underline">Privacy Policy</a>
+                            </span>
+                        </label>
+
                         <button
-                            className="w-full py-3.5 rounded-[12px] text-[14px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] mt-1 shadow-lg shadow-[#6C5FE6]/20"
+                            disabled={!agreed}
+                            className="w-full py-3.5 rounded-[12px] text-[14px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] mt-1 shadow-lg shadow-[#6C5FE6]/20 disabled:opacity-40 disabled:cursor-not-allowed"
                             style={{ background: "linear-gradient(135deg, #6C5FE6 0%, #4B3BFF 100%)" }}
                         >
-                            Sign in to Data-Talk
+                            Create free account
                         </button>
                     </form>
 
                     {/* Footer link */}
                     <p className="text-center text-[13px] text-slate-500 mt-8">
-                        Don't have an account?{" "}
-                        <Link href="/signup" className="font-semibold text-[#6C5FE6] hover:text-[#5040d0] transition-colors">
-                            Create one
+                        Already have an account?{" "}
+                        <Link href="/login" className="font-semibold text-[#6C5FE6] hover:text-[#5040d0] transition-colors">
+                            Sign in
                         </Link>
                     </p>
                 </div>
 
                 {/* Bottom */}
                 <p className="absolute bottom-6 text-[11px] text-slate-400 tracking-wide">
-                    © 2026 Data-Talk Intelligence. All rights reserved.
+                    © 2024 Data-Talk Intelligence. All rights reserved.
                 </p>
             </div>
         </div>
-    );
-}
-
-export default function LoginPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center bg-[#F7F8FC]">
-                <div className="w-8 h-8 border-2 border-[#6C5FE6] border-t-transparent rounded-full animate-spin" />
-            </div>
-        }>
-            <LoginContent />
-        </Suspense>
     );
 }

@@ -18,17 +18,20 @@ Your ONLY job is to route the user's message to the correct processing engine.
 Respond with exactly ONE word from this list (no punctuation, no explanation):
 sql      - For ANY direct OR indirect query regarding data, metrics, database records, analytics, statistics, counts, top/bottom lists, filters, or business logic implicitly reliant on a database. When in doubt between SQL and Chat, prefer SQL.
 doc_rag  - If the user is specifically referring to or asking about an uploaded document, text file, PDF, guidebook, external knowledge, OR if the context clearly implies visualizing/summarizing/elaborating on a document discussed recently.
-chat     - Strictly for general greetings, thanking the assistant, or asking how the system works. Do not use for anything data-related.
+chat     - Strictly for general greetings, thanking the assistant, asking how the system works, or asking about the assistant's own capabilities. Do not use for anything data-related.
 
 Examples:
 - 'show me all students with cgpa above 8' -> sql
 - 'is there any trend in student performance?' -> sql
 - 'who had the top sales this month?' -> sql
+- 'what tables do I have?' -> sql
 - 'summarize the uploaded PDF' -> doc_rag
 - 'according to the document, what is the policy?' -> doc_rag
 - 'visualize it and tell me about details !!' (when context is about a document) -> doc_rag
 - 'hi there' -> chat
 - 'thanks for the info' -> chat
+- 'what can you do?' -> chat
+- 'how does this app work?' -> chat
 """
 
 async def classify_intent(query: str, history: list = None) -> str:
@@ -70,7 +73,8 @@ async def classify_intent(query: str, history: list = None) -> str:
         if "sql" in intent: return "sql"
         if "doc" in intent or "rag" in intent: return "doc_rag"
         if "chat" in intent: return "chat"
-        return "sql" # safe fallback
+        logger.warning(f"[RouterAgent] Unrecognized intent '{intent}', defaulting to 'sql'")
+        return "sql"  # safe fallback
     except Exception as e:
         logger.error(f"RouterAgent error: {e}. Falling back to 'sql'.")
         return "sql"

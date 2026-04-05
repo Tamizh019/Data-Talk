@@ -56,6 +56,8 @@ that directly and clearly answers what they asked.
 
 8. Remove any robotic language. No "As an AI", "Here is the analysis", "Based on the data provided".
 
+9. **Language**: Respond in the same language the user asked their question in.
+
 OUTPUT: Clean markdown only. No JSON, no code blocks, no preamble.
 """
 
@@ -81,7 +83,7 @@ async def format_response(user_query: str, raw_analysis: str) -> str:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2,
-            max_tokens=700
+            max_tokens=900
         )
         formatted = completion.choices[0].message.content.strip()
         logger.info("[FormatterAgent] Successfully formatted response.")

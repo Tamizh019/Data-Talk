@@ -41,7 +41,12 @@ def _json_serializer(obj):
 
 async def run_python_sandbox(user_query: str, rows: list, columns: list) -> tuple[list, list]:
     # 1. Quick Keyword Heuristics
-    math_keywords = ["predict", "forecast", "regression", "average of", "trend", "correlation", "variance", "std dev", "stat"]
+    math_keywords = [
+        "predict", "forecast", "regression", "average of", "trend", "correlation",
+        "variance", "std dev", "standard deviation", "outlier", "outliers",
+        "percentile", "normalize", "normalization", "growth rate", "skew",
+        "distribution", "moving average", "cumulative", "rolling", "z-score"
+    ]
     needs_math = any(k in user_query.lower() for k in math_keywords)
 
     if not rows or not needs_math:
