@@ -9,10 +9,13 @@ It must:
   - Format the answer to actually solve what the user asked
   - Match the structure to the type of question (comparison, ranking, total, trend, etc.)
   - Never use generic headers like "Key Insight" or "Key Findings" unless relevant
+
+Fallback: Phi-4 via GitHub Models if Groq is unavailable.
 """
 import logging
 from groq import AsyncGroq
 from app.config import get_settings
+from app.core.fallback_client import github_chat_completion
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -90,5 +93,17 @@ async def format_response(user_query: str, raw_analysis: str) -> str:
         return formatted
 
     except Exception as e:
-        logger.warning(f"[FormatterAgent] Failed: {e}. Returning raw analysis.")
-        return raw_analysis
+        logger.warning(f"[FormatterAgent] Groq failed ({e}). Trying GitHub Models (Phi-4) fallback...")
+        try:
+            messages = [
+                {"role": "system", "content": FORMATTER_SYSTEM},
+                {"role": "user", "content": prompt}
+            ]
+            formatted = await github_chat_completion(
+                tier="light", messages=messages, temperature=0.2, max_tokens=900
+            )
+            logger.info("[FormatterAgent] Fallback response formatted via Phi-4.")
+            return formatted
+        except Exception as fallback_err:
+            logger.error(f"[FormatterAgent] Fallback also failed: {fallback_err}. Returning raw analysis.")
+            return raw_analysis

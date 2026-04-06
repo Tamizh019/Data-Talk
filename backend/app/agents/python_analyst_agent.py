@@ -2,6 +2,7 @@
 Python Sandbox Analyst Agent (Phase 6)
 Analyzes database rows. If advanced math/forecasting/stats is needed, writes and executes 
 safe Python (Pandas/NumPy) code to transform the data before passing it to the visualizer.
+Fallback: gpt-4o-mini via GitHub Models if Groq is unavailable.
 """
 import json
 import logging
@@ -10,6 +11,7 @@ import pandas as pd
 import numpy as np
 from groq import AsyncGroq
 from app.config import get_settings
+from app.core.fallback_client import github_chat_completion
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -106,6 +108,40 @@ async def run_python_sandbox(user_query: str, rows: list, columns: list) -> tupl
         return rows, columns
 
     except Exception as e:
-        logger.error(f"[PythonAgent] Execution failed: {e}")
-        # On failure, return original dataset so the pipeline doesn't crash completely
-        return rows, columns
+        logger.warning(f"[PythonAgent] Groq failed ({e}). Trying GitHub Models (gpt-4o-mini) fallback...")
+        try:
+            messages = [
+                {"role": "system", "content": PYTHON_SYSTEM},
+                {"role": "user", "content": prompt}
+            ]
+            code = await github_chat_completion(
+                tier="heavy", messages=messages, temperature=0, max_tokens=600
+            )
+            code = code.replace("```python", "").replace("```", "").strip()
+
+            if code == "NO_PYTHON_NEEDED" or not code:
+                return rows, columns
+
+            logger.info(f"[PythonAgent] Executing fallback Sandbox Code:\n{code[:100]}...")
+            df = pd.DataFrame(rows)
+            safe_globals = {
+                "__builtins__": {
+                    "sum": sum, "len": len, "round": round, "abs": abs,
+                    "min": min, "max": max, "int": int, "float": float, "str": str, "dict": dict, "list": list
+                },
+                "pd": pd,
+                "np": np
+            }
+            local_env = {"df": df, "result": None}
+            exec(code, safe_globals, local_env)
+            result = local_env.get("result")
+
+            if isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
+                return result, list(result[0].keys())
+            elif isinstance(result, pd.DataFrame):
+                return result.to_dict("records"), list(result.columns)
+
+            return rows, columns
+        except Exception as fallback_err:
+            logger.error(f"[PythonAgent] Fallback also failed: {fallback_err}. Returning original dataset.")
+            return rows, columns

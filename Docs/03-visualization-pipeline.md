@@ -7,14 +7,14 @@
 
 ## Two Visualization Paths
 
-Data-Talk now supports two distinct data paths. Which one runs depends on what the user did:
+Data-Talk supports two distinct data paths. Which one runs depends on what the user did:
 
 | Path | Triggered When | Agent Used |
 |---|---|---|
 | **SQL Visualization** | User asks a question about a *connected database* | `visualizer_agent.py` |
 | **Document Visualization** | User uploads a *file* (PDF, resume, report, etc.) | `doc_visualizer_agent.py` |
 
-Both paths produce the same final output format — a list of typed visualization blocks that the frontend renders dynamically.
+Both paths produce the same final output format — a list of typed visualization blocks that the frontend renders as interactive Plotly.js charts.
 
 ---
 
@@ -54,7 +54,7 @@ This analysis is fast (no AI needed) and tells the Visualizer what kind of data 
 
 ### ✅ Step 3 — The Visualizer Prompt Is Built
 
-A detailed prompt is assembled and sent to **Gemini Pro**. It contains:
+A detailed prompt is assembled and sent to **Gemini 3 Flash** (`models/gemini-3-flash-preview`). It contains:
 
 1. The user's original question  
 2. The column analysis from Step 2  
@@ -93,14 +93,14 @@ Gemini reads the prompt and chooses the best chart types. For this example:
     "delta_direction": "up"
   },
   {
-    "library": "echarts",
+    "library": "plotly",
     "title": "Count by Role & Gender",
     "config": {
-      "xAxis": { "data": ["Student", "Faculty", "Staff"] },
-      "series": [
-        { "name": "Male",   "type": "bar", "data": [412, 45, 28] },
-        { "name": "Female", "type": "bar", "data": [318, 32, 19] }
-      ]
+      "data": [
+        { "x": ["Student", "Faculty", "Staff"], "y": [412, 45, 28], "name": "Male", "type": "bar" },
+        { "x": ["Student", "Faculty", "Staff"], "y": [318, 32, 19], "name": "Female", "type": "bar" }
+      ],
+      "layout": { "barmode": "stack", "title": "Count by Role & Gender" }
     }
   },
   {
@@ -116,20 +116,27 @@ The three possible `library` values:
 | `library` value | Rendered As |
 |---|---|
 | `"kpi"` | A `KpiCard` component (large number badge with delta arrow) |
-| `"echarts"` | A `ReactECharts` interactive chart |
+| `"plotly"` | A `ChartRenderer` → `react-plotly.js` interactive chart |
 | `"table"` | A `DataTable` component with sorting and pagination |
 
 ---
 
 ### ✅ Step 6 — Dynamic Dispatch on the Frontend
 
-The frontend receives the typed block array and uses a **Dynamic Dispatcher** to route each block to the correct React component:
+The frontend receives the typed block array and uses the **Dashboard Studio** to route each block to the correct React component:
 
 ```
-Block { library: "kpi"     } → <KpiCard />
-Block { library: "echarts" } → <ReactECharts />
-Block { library: "table"   } → <DataTable />
+Block { library: "kpi"    } → <KpiCard />
+Block { library: "plotly"  } → <ChartRenderer /> (Plotly.js via react-plotly.js)
+Block { library: "table"  } → <DataTable />
 ```
+
+Each chart is wrapped in a `<ChartCard />` component that provides:
+- **Chart type switching** — click to change between 23+ Plotly chart types
+- **Export options** — download as interactive HTML or static SVG
+- **Cross-filtering** — click any data point to filter all other charts
+- **Drill-down** — click to see detailed data in a drawer
+- **Full-screen mode** — expand any chart to fill the viewport
 
 This means the backend is fully in control of what gets rendered — no hardcoded layout on the frontend. If Gemini decides the answer is *only* a table, that's all the user sees. If it picks 2 KPIs and 2 charts, all 4 appear.
 
@@ -169,7 +176,7 @@ Gemini automatically detects the document type and extracts relevant info:
 
 ### Phase 2 — Generate Charts from Structured Data
 
-The clean structured JSON from Phase 1 is then passed back to Gemini with a visualization prompt. Gemini generates 3-4 ECharts dashboard configs tailored to the document type.
+The clean structured JSON from Phase 1 is then passed back to Gemini with a visualization prompt. Gemini generates 3-4 Plotly dashboard configs tailored to the document type.
 
 **For a Resume:** Radar chart of skill categories, bar chart of project count by year, pie chart of technology usage.  
 **For a Financial Report:** Line chart of monthly trends, KPI cards for key numbers, bar chart for segment breakdown.
@@ -196,14 +203,15 @@ Python computes column stats        Phase 2: Generate chart configs
         ▼                                     ▼
 Gemini Visualizer Agent ──────────────────────┘
 Picks chart types & builds typed block array
-[{ library: "kpi" }, { library: "echarts" }, { library: "table" }]
+[{ library: "kpi" }, { library: "plotly" }, { library: "table" }]
         │
         ▼
-Frontend Dynamic Dispatcher
-<KpiCard /> or <ReactECharts /> or <DataTable />
+Frontend Dashboard Studio
+<KpiCard /> — <ChartRenderer (Plotly.js) /> — <DataTable />
         │
         ▼
 Interactive dashboard rendered 🎉
+(with cross-filtering, drill-down, export, type switching)
 ```
 
 ---
@@ -220,7 +228,10 @@ A: The agent targets 3–4 blocks per query. Running more than that clutters the
 A: Yes. The full result (including chart configs) is cached in Redis. The same question returns instantly on repeat, with no AI calls at all.
 
 **Q: Why not use one AI for everything?**  
-A: Each model is chosen for what it does best. Groq handles fast routing decisions (~200ms). Claude writes the most accurate SQL. Gemini is best at open-ended creative generation like chart selection and document summarization.
+A: Each model is chosen for what it does best. Groq handles fast routing decisions (~200ms). Gemini 3.1 Pro writes the most accurate SQL. Gemini 3 Flash is best at open-ended creative generation like chart selection. Groq Llama 3.3 70B does best at data analysis and SQL review.
+
+**Q: Can users change the chart type?**  
+A: Yes! Each chart card has a type switcher. Users can click to change between 23+ Plotly chart types (bar → line → scatter → bubble → etc.) without re-querying.
 
 ---
 

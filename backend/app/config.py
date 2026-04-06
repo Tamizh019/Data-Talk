@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     github_token: str = ""
     hf_token: str = ""
 
+    # --- GitHub Models Fallback (used when Groq rate-limits) ---
+    github_fallback_model_light: str = "microsoft/Phi-4"     # for router & refiner (fast, lightweight)
+    github_fallback_model_heavy: str = "openai/gpt-4o-mini"  # for analyst, QA, python agent (complex reasoning)
+
     # --- Supabase (Auth & Conversation History) ---
     supabase_url: str = ""
     supabase_service_role_key: str = ""

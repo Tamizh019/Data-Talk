@@ -1,10 +1,12 @@
 """
 Router Agent (Groq Llama-3.1-8b-instant)
 Responsible for instantly classifying a user query as 'sql' or 'chat'.
+Fallback: Phi-4 via GitHub Models if Groq is unavailable.
 """
 import logging
 from groq import AsyncGroq
 from app.config import get_settings
+from app.core.fallback_client import github_chat_completion
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -76,5 +78,20 @@ async def classify_intent(query: str, history: list = None) -> str:
         logger.warning(f"[RouterAgent] Unrecognized intent '{intent}', defaulting to 'sql'")
         return "sql"  # safe fallback
     except Exception as e:
-        logger.error(f"RouterAgent error: {e}. Falling back to 'sql'.")
-        return "sql"
+        logger.warning(f"[RouterAgent] Groq failed ({e}). Trying GitHub Models (Phi-4) fallback...")
+        try:
+            messages = [
+                {"role": "system", "content": INTENT_SYSTEM},
+                {"role": "user", "content": prompt}
+            ]
+            intent = await github_chat_completion(
+                tier="light", messages=messages, temperature=0.1, max_tokens=10
+            )
+            intent = intent.strip().lower()
+            if "sql" in intent: return "sql"
+            if "doc" in intent or "rag" in intent: return "doc_rag"
+            if "chat" in intent: return "chat"
+            return "sql"
+        except Exception as fallback_err:
+            logger.error(f"[RouterAgent] Fallback also failed: {fallback_err}. Defaulting to 'sql'.")
+            return "sql"

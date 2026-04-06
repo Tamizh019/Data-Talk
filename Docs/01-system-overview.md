@@ -24,14 +24,29 @@ Instead of writing SQL queries, users simply type a question in plain English. T
 
 ## The Big Picture
 
-Think of the system as a **team of specialists** — each one does a specific job:
+Think of the system as a **team of 10 specialists** — each one does a specific job:
 
 ```
 User Question
      │
      ▼
-┌─────────────┐    Decides: is this a data question or just chat?
-│ Router      │──────────────────────────────────────────────────
+┌─────────────┐    Blocks prompt injection / malicious input
+│  Security   │
+└─────────────┘
+     │
+     ▼
+┌─────────────┐    Returns instantly if this question was asked before
+│ Redis Cache │
+└─────────────┘
+     │
+     ▼
+┌─────────────┐    Decides: is this a data question, doc question, or just chat?
+│   Router    │────────────────────────────────────────────────────────
+└─────────────┘
+     │
+     ▼
+┌─────────────┐    Finds the 2-3 most relevant tables using vector search
+│ Schema RAG  │
 └─────────────┘
      │
      ▼
@@ -40,13 +55,18 @@ User Question
 └─────────────┘
      │
      ▼
-┌─────────────┐    Double-checks the SQL for errors
+┌─────────────┐    Double-checks the SQL for errors and fixes them
 │  QA Agent   │
 └─────────────┘
      │
      ▼
-┌─────────────┐    Actually runs the SQL on the database
-│  Database   │
+┌─────────────┐    Actually runs the SQL on the database (with auto-retry)
+│  Executor   │
+└─────────────┘
+     │
+     ▼
+┌─────────────┐    Runs advanced stats/forecasting if the question needs it
+│ Python Agent│
 └─────────────┘
      │
      ▼
@@ -60,7 +80,12 @@ User Question
 └─────────────┘
      │
      ▼
-  Final Response (Charts + SQL + Explanation)
+┌─────────────┐    Formats the final answer to match the question type
+│  Refiner    │
+└─────────────┘
+     │
+     ▼
+  Final Response (Charts + SQL + Formatted Analysis)
 ```
 
 ---
@@ -69,14 +94,18 @@ User Question
 
 | What | Technology | Why |
 |---|---|---|
-| **Backend** | FastAPI (Python) | Fast, modern API framework |
-| **Frontend** | Next.js (React) | The chat interface users see |
-| **Database** | PostgreSQL | Where the actual data lives |
+| **Backend** | FastAPI (Python) | Fast, modern async API framework |
+| **Frontend** | Next.js 16 + React 19 (TypeScript) | The chat interface and dashboard studio |
+| **Database** | PostgreSQL (any, connected at runtime) | Where the actual data lives |
 | **Schema Search** | pgvector + LlamaIndex | Helps find the right tables quickly |
-| **AI Routing** | Groq (Llama 3 8B) | Ultra-fast: decides what kind of question it is |
-| **SQL Generation** | OpenRouter (Claude 3.5) | Best-in-class at writing accurate SQL |
-| **Charts & Analysis** | Google Gemini Pro | Creates visualizations and writes explanations |
-| **Charts Rendering** | Apache ECharts | Renders the actual charts in the browser |
+| **AI Routing** | Groq (Llama 3.1 8B) | Ultra-fast: decides what kind of question it is |
+| **SQL Generation** | Google Gemini 3.1 Pro | Best-in-class at writing accurate SQL |
+| **QA & Analysis** | Groq (Llama 3.3 70B) | Fast review, statistical analysis |
+| **Charts & Visualization** | Google Gemini 3 Flash | Creates visualization configs from data |
+| **Chart Rendering** | Plotly.js (`react-plotly.js`) | Renders 23+ interactive chart types in the browser |
+| **Fallback Models** | GitHub Models (Phi-4 / gpt-4o-mini) | Automatic failover when Groq rate-limits |
+| **Auth** | Supabase Auth (Google & GitHub OAuth) | User authentication and profile management |
+| **Caching** | Redis | Repeated questions return instantly |
 
 ---
 
@@ -84,13 +113,16 @@ User Question
 
 The system doesn't make users wait for everything to finish. It **streams updates** step by step using a live **"Thinking Panel"** displayed directly in the chat:
 
-1. 🔀 *"Routing your question to the right agent..."*
-2. 🔍 *"Scanning the database schema for relevant tables..."*
-3. 📝 *"Composing a precise SQL query..."*
-4. 🛡️ *"Senior QA agent reviewing for accuracy..."*
-5. ⚡ *"Executing the query against the live database..."*
-6. 📊 *"Analyzing N rows — picking the best charts and visuals..."*
-7. 💬 *"Crafting business summary and key insights..."*
+1. 💾 *"Checking Redis for a previously computed answer..."*
+2. 🔀 *"Analysing the question and routing it to the correct agent pipeline..."*
+3. 🔍 *"Querying the schema index to find the tables most relevant to this request..."*
+4. 📝 *"Translating the natural-language question into an optimised SQL query..."*
+5. 🛡️ *"Senior QA agent reviewing the generated SQL for correctness and safety..."*
+6. ⚡ *"Running the SQL against the live database..."*
+7. 🐍 *"Checking if advanced statistical computation is needed..."*
+8. 📊 *"Analysing N rows and selecting the optimal chart types and layout..."*
+9. 💬 *"Computing aggregates, trends, and anomalies. Synthesising key business insights..."*
+10. ✨ *"Matching the answer structure to your question type..."*
 
 Once all steps complete, the Thinking Panel **collapses** into a clean `✅ Thought for N steps` header, and the final result (SQL, charts, summary) appears below — exactly like Claude's reasoning UI.
 
@@ -102,11 +134,17 @@ This is done using **Server-Sent Events (SSE)** — the page updates live withou
 
 | Feature | Description |
 |---|---|
+| 🛡️ **Fallback Client** | Automatic failover to GitHub Models (Phi-4 / gpt-4o-mini) when Groq rate-limits |
+| 🔄 **Auto-Retry Engine** | SQL execution failures trigger AI-powered self-correction (up to 2 retries) |
 | 🧠 **Thinking Panel** | Live Claude-style collapsible step panel during query processing |
-| 💾 **Schema Caching** | MD5 hash of schema saved to disk — skips Gemini embedding API if DB schema unchanged |
+| 💾 **Schema Caching** | MD5 hash of schema saved to disk — skips embedding API if DB schema unchanged |
 | ⚡ **Redis Cache** | Query results cached with configurable TTL — repeated questions return instantly |
 | 👤 **User Profiles** | Editable job title, company, department, and bio — persisted to Supabase Auth metadata |
-| 📊 **Dynamic Dispatch** | Visualizer now returns multiple typed blocks (KPI / Table / ECharts) for flexible rendering |
+| 📊 **Dashboard Studio** | Full interactive dashboard with cross-filtering, drill-down, and chart type switching |
+| 💡 **Smart Suggestions** | Schema-aware onboarding — AI generates tailored starter questions on DB connect |
+| 🐍 **Python Sandbox** | Secure Pandas/NumPy execution for advanced stats, forecasting, and transformations |
+| ❌ **Error Explainer** | Friendly plain-English error messages — users never see raw stack traces |
+| 💬 **Conversation Sync** | Chat history persisted to Supabase for cross-device continuity |
 
 ---
 
@@ -122,12 +160,18 @@ This is done using **Server-Sent Events (SSE)** — the page updates live withou
 
 ```
 RAG/
-├── backend/              ← All the AI and API logic lives here
-│   ├── app/agents/       ← Each AI agent has its own file
-│   ├── app/core/         ← Database connection, schema indexing, security
-│   └── app/main.py       ← API entry point
-├── frontend/             ← The chat UI
-└── Docs/                 ← You are here 📍
+├── backend/                  ← All the AI and API logic
+│   ├── app/agents/           ← 10 AI agents (router, sql, qa, visualizer, analyst, etc.)
+│   ├── app/core/             ← Database connection, schema indexer, security, cache, fallback
+│   ├── app/routes/           ← API route handlers (chat, upload, conversations)
+│   ├── app/config.py         ← Environment settings (all models, keys, URLs)
+│   └── app/main.py           ← App entry point + admin endpoints
+├── frontend/                 ← The chat UI and Dashboard Studio
+│   ├── src/components/       ← UI components (ChatWindow, ChartRenderer, etc.)
+│   ├── src/components/studio/ ← Dashboard Studio (ChartCard, FilterPanel, DrillDown, etc.)
+│   └── src/lib/              ← API client, auth context, chat context
+├── Docs/                     ← You are here 📍
+└── docker-compose.yml        ← Container orchestration
 ```
 
 ---

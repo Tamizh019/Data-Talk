@@ -1,2 +1,0 @@
-visualizer_model: [gemini-3.1-pro-preview]
-sql_generator_model: [anthropic/claude-3.5-sonnet]

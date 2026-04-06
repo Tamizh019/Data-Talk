@@ -160,12 +160,12 @@ This human-readable text is what gets converted to a vector.
 
 **File:** `backend/app/core/embedder.py`
 
-The system uses **`models/gemini-embedding-001`** — Google's dedicated embedding model (not a chat model).
+The system uses **`models/text-embedding-0`** — Google's dedicated embedding model (not a chat model).
 
 ```python
 # embedder.py
 GeminiEmbedding(
-    model_name="models/gemini-embedding-001",
+    model_name="models/text-embedding-0",
     api_key=settings.gemini_api_key
 )
 ```
@@ -342,7 +342,7 @@ Write a PostgreSQL SELECT query to answer this question.
 """
 ```
 
-The SQL Agent (Claude 3.5 Sonnet) then writes a query using **only** the tables it was given context for.
+The SQL Agent (Gemini 3.1 Pro) then writes a query using **only** the tables it was given context for.
 
 ---
 
@@ -351,10 +351,9 @@ The SQL Agent (Claude 3.5 Sonnet) then writes a query using **only** the tables 
 | Setting | Default | Effect |
 |---|---|---|
 | `USE_PGVECTOR=True` | — | Enables full RAG (vector search). Set `False` to fall back to sending the full schema as text. |
-| `EMBED_MODEL` | `models/gemini-embedding-001` | Which Gemini model generates the 3072-dim vectors |
+| `EMBED_MODEL` | `models/text-embedding-0` | Which Gemini model generates the embedding vectors |
 | `PGVECTOR_COLLECTION` | `data_talk_vectors` | The table name inside Supabase where vectors are stored |
 | `similarity_top_k` | `3` | How many table chunks to retrieve per query (hardcoded in `get_schema_context`) |
-| `embed_dim` | `3072` | Must match the output dimension of `gemini-embedding-001` |
 
 ---
 
@@ -378,6 +377,7 @@ The fallback still works perfectly for small databases (< 10 tables).
 | `app/core/vector_store.py` | Connects to the permanent Supabase pgvector store (3072-dim, `data_talk_vectors` table) |
 | `app/core/.schema_hash.json` | Disk-persisted MD5 hash — prevents redundant embedding API calls |
 | `app/agents/orchestrator.py` | Calls `get_schema_context(question)` before invoking the SQL Agent |
+| `app/core/fallback_client.py` | GitHub Models fallback — used by agents when Groq rate-limits |
 
 ---
 

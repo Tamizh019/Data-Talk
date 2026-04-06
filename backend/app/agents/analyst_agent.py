@@ -2,10 +2,12 @@
 Analyst Agent (Groq Llama-3.3-70b-versatile)
 Produces a structured business summary from SQL results.
 Output is raw material for the Formatter Agent.
+Fallback: gpt-4o-mini via GitHub Models if Groq is unavailable.
 """
 import logging
 from groq import AsyncGroq
 from app.config import get_settings
+from app.core.fallback_client import github_chat_completion
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -72,8 +74,18 @@ async def explain_results(question: str, rows: list, columns: list) -> str:
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"AnalystAgent explanation failed: {e}")
-        return "Data retrieved successfully."
+        logger.warning(f"[AnalystAgent] Groq failed ({e}). Trying GitHub Models (gpt-4o-mini) fallback...")
+        try:
+            messages = [
+                {"role": "system", "content": ANALYST_SYSTEM},
+                {"role": "user", "content": prompt}
+            ]
+            return await github_chat_completion(
+                tier="heavy", messages=messages, temperature=0.3, max_tokens=900
+            )
+        except Exception as fallback_err:
+            logger.error(f"[AnalystAgent] Fallback also failed: {fallback_err}.")
+            return "Data retrieved successfully."
 
 
 async def chat_fallback(history: list, user_query: str) -> str:
@@ -122,5 +134,11 @@ You are NOT a general-purpose AI. You are a specialized autonomous database agen
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"AnalystAgent chat failed: {e}")
-        return "I'm having trouble thinking right now. Could you rephrase your question?"
+        logger.warning(f"[AnalystAgent] Chat Groq failed ({e}). Trying GitHub Models (gpt-4o-mini) fallback...")
+        try:
+            return await github_chat_completion(
+                tier="heavy", messages=messages, temperature=0.5, max_tokens=500
+            )
+        except Exception as fallback_err:
+            logger.error(f"[AnalystAgent] Chat fallback also failed: {fallback_err}.")
+            return "I'm having trouble thinking right now. Could you rephrase your question?"

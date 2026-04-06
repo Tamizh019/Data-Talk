@@ -17,6 +17,7 @@ cryptography                      # Required for MySQL auth plugin
 google-generativeai>=0.5.4        # Gemini Pro (Old SDK, needed by LlamaIndex)
 google-genai                      # Modern SDK (New, used by our Agents)
 groq                              # Groq API (Router, Analyst, QA, Refiner, Python agents)
+openai>=1.30.0                    # GitHub Models fallback (OpenAI-compatible API via Azure AI)
 httpx==0.28.1                     # HTTP client
 
 # ── LlamaIndex + pgvector ─────────────────────────────────────
