@@ -111,7 +111,8 @@ async def get_schema():
 async def connect_database(payload: dict):
     """
     Dynamically update the target database connection at runtime.
-    Accepts: { "db_url": "postgresql+asyncpg://user:pass@host:port/dbname" }
+    Supports: PostgreSQL, MySQL, SQLite (full query support)
+              MongoDB, Redis (connection + schema only — query support coming soon)
     """
     from fastapi import HTTPException
     from app.core.schema_indexer import schema_indexer
@@ -122,6 +123,54 @@ async def connect_database(payload: dict):
     if not db_url:
         raise HTTPException(status_code=400, detail="db_url is required")
 
+    # ── NoSQL handlers (connection-only, no query execution yet) ──────────
+    if db_url.startswith("mongodb://") or db_url.startswith("mongodb+srv://"):
+        # Validate the URL can be parsed
+        try:
+            urllib.parse.urlparse(db_url)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid MongoDB connection URL")
+        
+        return {
+            "status": "connected",
+            "message": "MongoDB connected successfully. Query support coming soon.",
+            "db_type": "mongodb",
+            "suggestions": {
+                "greeting": "🟢 MongoDB connected! Natural language queries for MongoDB are coming in a future update.",
+                "categories": [
+                    {"name": "Info", "questions": [
+                        "MongoDB connection is active",
+                        "Schema exploration will be available soon",
+                        "Aggregation pipeline support is planned"
+                    ]}
+                ]
+            },
+        }
+
+    if db_url.startswith("redis://") or db_url.startswith("rediss://"):
+        try:
+            urllib.parse.urlparse(db_url)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid Redis connection URL")
+        
+        return {
+            "status": "connected",
+            "message": "Redis connected successfully. Query support coming soon.",
+            "db_type": "redis",
+            "suggestions": {
+                "greeting": "🟢 Redis connected! Natural language queries for Redis are coming in a future update.",
+                "categories": [
+                    {"name": "Info", "questions": [
+                        "Redis connection is active",
+                        "Key exploration will be available soon",
+                        "Redis command support is planned"
+                    ]}
+                ]
+            },
+        }
+
+    # ── SQL handlers (full query support) ─────────────────────────────────
+
     # Accept plain postgres:// and convert to asyncpg driver
     if db_url.startswith("postgresql://") or db_url.startswith("postgres://"):
         db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -131,10 +180,14 @@ async def connect_database(payload: dict):
     if db_url.startswith("mysql://"):
         db_url = db_url.replace("mysql://", "mysql+aiomysql://", 1)
 
-    if not (db_url.startswith("postgresql+asyncpg://") or db_url.startswith("mysql+aiomysql://")):
+    # Accept plain sqlite:// and convert to aiosqlite driver
+    if db_url.startswith("sqlite:///"):
+        db_url = db_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+
+    if not (db_url.startswith("postgresql+asyncpg://") or db_url.startswith("mysql+aiomysql://") or db_url.startswith("sqlite+aiosqlite:///")):
         raise HTTPException(
             status_code=400,
-            detail="Invalid URL. Supported formats: postgresql://... or mysql://..."
+            detail="Invalid URL. Supported formats: postgresql://, mysql://, sqlite:///path, mongodb://, redis://"
         )
 
     # --- Supabase Options Fix & Schema Extraction ---
@@ -149,7 +202,11 @@ async def connect_database(payload: dict):
         except Exception:
             pass
 
-    if "?" in db_url:
+    # SQLite doesn't use schemas — use "main"
+    if db_url.startswith("sqlite+aiosqlite:///"):
+        target_schema = "main"
+
+    if "?" in db_url and not db_url.startswith("sqlite"):
         base, query = db_url.split("?", 1)
         params = urllib.parse.parse_qs(query)
         

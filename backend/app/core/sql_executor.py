@@ -16,6 +16,7 @@ def get_db_engine():
     if _engine is None:
         settings = get_settings()
         is_postgres = settings.target_db_url.startswith("postgresql")
+        is_sqlite = settings.target_db_url.startswith("sqlite")
 
         connect_args = {}
         execution_options = {}
@@ -26,13 +27,13 @@ def get_db_engine():
                 "server_settings": {"search_path": settings.target_schema}
             }
             execution_options = {"postgresql_readonly": True}
-        # For MySQL, we omit these Postgres-specific args
+        # For MySQL and SQLite, we omit Postgres-specific args
 
         _engine = create_async_engine(
             settings.target_db_url,
-            pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10,
+            pool_pre_ping=not is_sqlite,  # SQLite doesn't support pool_pre_ping
+            pool_size=5 if not is_sqlite else 1,
+            max_overflow=10 if not is_sqlite else 0,
             connect_args=connect_args,
             execution_options=execution_options,
         )

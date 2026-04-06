@@ -20,34 +20,54 @@ class SchemaIndexer:
         self._last_table_hash = None
 
     async def fetch_db_schema(self) -> List[Dict]:
-        """Fetches the database schema from the connected Postgres."""
-        query = text("""
-            SELECT 
-                t.table_name,
-                c.column_name,
-                c.data_type,
-                c.is_nullable
-            FROM information_schema.tables t
-            JOIN information_schema.columns c ON t.table_name = c.table_name AND t.table_schema = c.table_schema
-            WHERE t.table_schema = :schema
-            AND t.table_type = 'BASE TABLE'
-            ORDER BY t.table_name, c.ordinal_position;
-        """)
-
+        """Fetches the database schema. Supports PostgreSQL, MySQL, and SQLite."""
         try:
             engine = get_db_engine()
-            async with engine.connect() as conn:
-                result = await conn.execute(query, {"schema": settings.target_schema})
-                rows = result.fetchall()
+            is_sqlite = settings.target_db_url.startswith("sqlite")
 
-                schema_map = {}
-                for r in rows:
-                    table, col, dtype, nullable = r
-                    if table not in schema_map:
-                        schema_map[table] = []
-                    schema_map[table].append(f"{col} ({dtype})")
+            if is_sqlite:
+                # SQLite: use sqlite_master to get tables, then PRAGMA for columns
+                async with engine.connect() as conn:
+                    # Get all user tables
+                    tables_result = await conn.execute(
+                        text("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+                    )
+                    table_names = [row[0] for row in tables_result.fetchall()]
 
-                return [{"table": k, "columns": ", ".join(v)} for k, v in schema_map.items()]
+                    schema_map = {}
+                    for tname in table_names:
+                        col_result = await conn.execute(text(f'PRAGMA table_info("{tname}")'))
+                        cols = [f"{row[1]} ({row[2]})" for row in col_result.fetchall()]
+                        schema_map[tname] = cols
+
+                    return [{"table": k, "columns": ", ".join(v)} for k, v in schema_map.items()]
+            else:
+                # PostgreSQL / MySQL: use information_schema
+                query = text("""
+                    SELECT 
+                        t.table_name,
+                        c.column_name,
+                        c.data_type,
+                        c.is_nullable
+                    FROM information_schema.tables t
+                    JOIN information_schema.columns c ON t.table_name = c.table_name AND t.table_schema = c.table_schema
+                    WHERE t.table_schema = :schema
+                    AND t.table_type = 'BASE TABLE'
+                    ORDER BY t.table_name, c.ordinal_position;
+                """)
+
+                async with engine.connect() as conn:
+                    result = await conn.execute(query, {"schema": settings.target_schema})
+                    rows = result.fetchall()
+
+                    schema_map = {}
+                    for r in rows:
+                        table, col, dtype, nullable = r
+                        if table not in schema_map:
+                            schema_map[table] = []
+                        schema_map[table].append(f"{col} ({dtype})")
+
+                    return [{"table": k, "columns": ", ".join(v)} for k, v in schema_map.items()]
         except Exception as e:
             logger.error(f"[SchemaIndexer] Failed to fetch schema from DB: {e}")
             return []

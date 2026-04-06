@@ -68,47 +68,66 @@ function CheckCircle() {
  * - Password-signup users (already have name):  Skip to welcome directly
  */
 export default function OnboardingPage() {
-    const { user, updateProfile } = useAuth();
+    const { user, updateProfile, isLoading: authLoading } = useAuth();
     const router = useRouter();
 
-    // Determine if this is an OAuth user (no password set, no first_name in metadata)
-    const isOAuthUser = user?.app_metadata?.provider === "google" || user?.app_metadata?.provider === "github";
-    const hasName = !!user?.user_metadata?.first_name || !!user?.user_metadata?.full_name;
-
-    const needsProfile = isOAuthUser && !hasName;
-
-    const [step, setStep] = useState<"profile" | "welcome">(needsProfile ? "profile" : "welcome");
+    // ── Step state: null = "not yet resolved" (shows spinner) ────────────
+    const [step, setStep] = useState<"profile" | "welcome" | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Form state
-    const [displayName, setDisplayName] = useState(
-        user?.user_metadata?.full_name || user?.user_metadata?.name || ""
-    );
+    const [displayName, setDisplayName] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [showPw, setShowPw] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
-    // Determine first name for welcome screen
+    // ── Smart routing: runs ONLY after auth has finished loading ─────────
+    useEffect(() => {
+        // Still waiting for Supabase session — do nothing
+        if (authLoading) return;
+
+        // Not logged in at all → go to login
+        if (!user) {
+            router.replace("/login");
+            return;
+        }
+
+        // Already completed onboarding → go straight to chat
+        if (user.user_metadata?.onboarding_complete === true) {
+            router.replace("/chat");
+            return;
+        }
+
+        // Determine: is this a Google/GitHub OAuth user?
+        const provider = user.app_metadata?.provider;
+        const isOAuthUser = provider === "google" || provider === "github";
+
+        if (isOAuthUser) {
+            // Always force OAuth users to set a password (profile step)
+            setStep("profile");
+            // Pre-fill name from what Google/GitHub gave us so user can confirm/edit
+            const googleName = user.user_metadata?.full_name || user.user_metadata?.name || "";
+            setDisplayName(googleName);
+        } else {
+            // Manual signup users: password already set, just show welcome
+            const firstName = user.user_metadata?.first_name || "";
+            const lastName = user.user_metadata?.last_name || "";
+            setDisplayName(`${firstName} ${lastName}`.trim());
+            setStep("welcome");
+        }
+    }, [authLoading, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Derive display name for welcome screen
     const meta = user?.user_metadata || {};
     const firstName =
+        displayName.split(" ")[0] ||
         meta.first_name ||
         (meta.full_name ? meta.full_name.split(" ")[0] : null) ||
         (meta.name ? meta.name.split(" ")[0] : null) ||
-        displayName.split(" ")[0] ||
         "there";
 
-    // If already completed onboarding, go straight to chat
-    useEffect(() => {
-        if (user?.user_metadata?.onboarding_complete) {
-            router.push("/chat");
-        }
-        // If no user at all (not logged in), redirect to login
-        if (!user) {
-            router.push("/login");
-        }
-    }, [user]);
 
     const handleProfileSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -159,11 +178,35 @@ export default function OnboardingPage() {
         router.push("/chat");
     };
 
-    if (!user) return null;
+
+    // Show a full-page spinner while auth resolves or while we're determining the step
+    if (authLoading || step === null) {
+        return (
+            <div className="min-h-screen bg-[#F7F8FC] flex items-center justify-center">
+                <Background />
+                <div className="relative z-10 flex flex-col items-center gap-4">
+                    <svg className="w-10 h-10 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-20" cx="12" cy="12" r="10" stroke="url(#sg)" strokeWidth="3" />
+                        <path className="opacity-80" fill="url(#sg2)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        <defs>
+                            <linearGradient id="sg" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                                <stop stopColor="#7C6FFF"/><stop offset="1" stopColor="#00C9B1"/>
+                            </linearGradient>
+                            <linearGradient id="sg2" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                                <stop stopColor="#7C6FFF"/><stop offset="1" stopColor="#00C9B1"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <span className="text-[13px] text-slate-400 font-medium tracking-wide">Setting up your workspace…</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#F7F8FC] flex items-center justify-center px-4 relative">
             <Background />
+
 
             <div
                 className="relative z-10 w-full max-w-[440px] rounded-[24px] overflow-hidden"
@@ -196,8 +239,9 @@ export default function OnboardingPage() {
                                     </span>
                                 </h1>
                                 <p className="text-[14px] text-slate-500 leading-relaxed">
-                                    You signed in with {user.app_metadata?.provider === "google" ? "Google" : "GitHub"}. 
-                                    Add a name and create a password to secure your account.
+                                    You signed in with {user?.app_metadata?.provider === "google" ? "Google" : "GitHub"}. 
+                                    {displayName ? " Confirm your name" : " Add a name"} and create a password to secure your account. 
+                                    <br/><span className="text-[12px] opacity-80 mt-1 inline-block">This also allows you to log in with your email and password in the future!</span>
                                 </p>
                             </div>
 
