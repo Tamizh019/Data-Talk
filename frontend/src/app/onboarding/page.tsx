@@ -204,7 +204,7 @@ export default function OnboardingPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#F7F8FC] flex items-center justify-center px-4 relative">
+        <div className="h-screen overflow-y-auto bg-[#F7F8FC] flex items-center justify-center px-4 sm:px-4 py-8 relative">
             <Background />
 
 
@@ -223,7 +223,7 @@ export default function OnboardingPage() {
                     style={{ background: "linear-gradient(90deg, #7C6FFF 0%, #00C9B1 100%)" }}
                 />
 
-                <div className="px-10 py-10">
+                <div className="px-6 sm:px-10 py-8 sm:py-10">
                     {step === "profile" ? (
                         /* ── PROFILE COLLECTION STEP ── */
                         <>

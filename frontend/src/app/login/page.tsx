@@ -168,14 +168,14 @@ function LoginContent() {
     };
 
     return (
-        <div className="flex min-h-screen bg-[#F7F8FC] relative">
+        <div className="auth-scroll-page flex h-screen overflow-y-auto bg-[#F7F8FC] relative">
             <Background />
             <BrandPanel />
 
             {/* ── Right: Form ── */}
-            <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 relative z-10">
+            <div className="flex-1 flex flex-col items-center justify-center px-5 sm:px-6 py-8 sm:py-12 relative z-10 min-h-screen lg:min-h-0">
                 {/* Mobile logo */}
-                <div className="flex lg:hidden items-center gap-2.5 mb-10">
+                <div className="flex lg:hidden items-center gap-2.5 mb-8 sm:mb-10">
                     <img src="/logo.png" alt="Data-Talk" className="w-8 h-8 object-contain" />
                     <span className="text-slate-800 font-bold text-[16px] tracking-tight">Data-Talk</span>
                 </div>
@@ -183,7 +183,7 @@ function LoginContent() {
                 <div className="w-full max-w-[400px] animate-fadein">
                     {/* Header */}
                     <div className="mb-8">
-                        <h1 className="text-[26px] font-bold text-slate-900 tracking-tight mb-1.5">Welcome back</h1>
+                        <h1 className="text-[24px] sm:text-[26px] font-bold text-slate-900 tracking-tight mb-1.5">Welcome back</h1>
                         <p className="text-[14px] text-slate-500">Sign in to your Data-Talk workspace.</p>
                     </div>
 
@@ -289,7 +289,7 @@ function LoginContent() {
                 </div>
 
                 {/* Bottom */}
-                <p className="absolute bottom-6 text-[11px] text-slate-400 tracking-wide">
+                <p className="mt-10 text-[11px] text-slate-400 tracking-wide">
                     © 2026 Data-Talk Intelligence. All rights reserved.
                 </p>
             </div>

@@ -278,7 +278,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
     const [connectionType, setConnectionType] = useState<"parameters" | "uri">("parameters");
 
     const [uri, setUri] = useState("");
-    const [host, setHost] = useState("localhost");
+    const [host, setHost] = useState("");
     const [port, setPort] = useState("5432");
     const [db_user, setDbUser] = useState("postgres");
     const [password, setPassword] = useState("");
@@ -302,16 +302,16 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
         // Smart defaults
         if (id === "mysql") {
             setDbUser("root");
-            setHost("localhost");
+            setHost("");
         } else if (id === "postgresql") {
             setDbUser("postgres");
-            setHost("localhost");
+            setHost("");
         } else if (id === "mongodb") {
             setDbUser("admin");
-            setHost("localhost");
+            setHost("");
         } else if (id === "redis") {
             setDbUser("");
-            setHost("localhost");
+            setHost("");
         } else if (id === "sqlite") {
             setHost("");
             setDbUser("");
@@ -426,16 +426,16 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
     return (
         /* Backdrop — click intentionally does NOT close the modal */
         <div
-            className="fixed inset-0 z-[200] flex items-center justify-center"
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center"
             style={{
                 background: "var(--glass-bg)",
                 backdropFilter: "blur(6px)",
                 WebkitBackdropFilter: "blur(6px)",
             }}
         >
-            {/* Modal Card */}
+            {/* Modal Card — full sheet on mobile, centered card on desktop */}
             <div
-                className="relative w-full mx-4 rounded-[20px] overflow-hidden shadow-2xl animate-modal-in backdrop-blur-xl bg-white/95 text-slate-800"
+                className="relative w-full sm:mx-4 rounded-t-[20px] sm:rounded-[20px] overflow-hidden shadow-2xl animate-modal-in backdrop-blur-xl bg-white/95 text-slate-800 max-h-[95vh] sm:max-h-[85vh] overflow-y-auto"
                 style={{
                     maxWidth: 620,
                     border: "1px solid rgba(0,0,0,0.08)",
@@ -445,8 +445,8 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                 {/* Top accent line */}
                 <div className="h-[2px] w-full" style={{ background: "linear-gradient(90deg, transparent, #7C6FFF 40%, #00C9B1 70%, transparent)" }} />
 
-                {/* ── Header ─────────────────────────────────────────── */}
-                <div className="px-7 pt-6 pb-5 flex items-start justify-between border-b border-border/50">
+                {/* ── Header ── */}
+                <div className="px-5 sm:px-7 pt-5 sm:pt-6 pb-4 sm:pb-5 flex items-start justify-between border-b border-border/50">
                     <div className="flex items-center gap-4">
                         <div
                             className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -481,8 +481,8 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                     </button>
                 </div>
 
-                {/* ── Body ───────────────────────────────────────────── */}
-                <div className="px-7 py-6 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                {/* ── Body ── */}
+                <div className="px-5 sm:px-7 py-5 sm:py-6 space-y-5 custom-scrollbar">
 
                     {/* ── Provider Selector: Grouped ── */}
                     <div className="space-y-4">
@@ -589,7 +589,7 @@ export default function ConnectDbModal({ onClose, onConnected }: ConnectDbModalP
                                             label="HOST ADDRESS"
                                             value={host}
                                             onChange={setHost}
-                                            placeholder="db.example.com"
+                                            placeholder={selectedDb === "postgresql" ? "db.project.supabase.co" : selectedDb === "mysql" ? "mysql.railway.app" : selectedDb === "mongodb" ? "cluster0.abc12.mongodb.net" : "redis-host.cloud.redislabs.com"}
                                             hasError={hasError}
                                         />
                                     </div>

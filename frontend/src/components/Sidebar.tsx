@@ -25,9 +25,11 @@ export type SidebarView = "conversations" | "schema" | "analytics" | "reports";
 
 interface SidebarProps {
     onSchemaToggle?: () => void;
+    mobileOpen?: boolean;
+    onMobileClose?: () => void;
 }
 
-export default function Sidebar({ onSchemaToggle }: SidebarProps) {
+export default function Sidebar({ onSchemaToggle, mobileOpen = false, onMobileClose }: SidebarProps) {
     const { conversations, activeId, setActiveChat, createNewChat, deleteChat, renameChat } = useChat();
     const { user } = useAuth();
     const { theme, setTheme } = useTheme();
@@ -87,7 +89,12 @@ export default function Sidebar({ onSchemaToggle }: SidebarProps) {
 
     return (
         <div
-            className="flex flex-col h-full shrink-0 z-40 relative transition-colors duration-300"
+            className={cn(
+                "flex flex-col h-full shrink-0 z-40 relative transition-all duration-300",
+                // Mobile: fixed overlay that slides in from left
+                "fixed md:relative top-0 left-0",
+                mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+            )}
             style={{
                 width: "260px",
                 background: "var(--glass-bg)",
@@ -116,7 +123,7 @@ export default function Sidebar({ onSchemaToggle }: SidebarProps) {
 
             <div className="px-4 pb-3 shrink-0">
                 <button
-                    onClick={() => { createNewChat(); goToChat(); }}
+                    onClick={() => { createNewChat(); goToChat(); onMobileClose?.(); }}
                     className="group w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl transition-all hover:scale-[1.01] active:scale-[0.99] bg-[#633BFE] hover:bg-[#5028E5] dark:bg-[#7C5DFE] dark:hover:bg-[#9175FF] text-white font-semibold text-[13px] shadow-[0_4px_12px_rgba(99,59,254,0.25)] dark:shadow-[0_4px_12px_rgba(124,93,254,0.25)]"
                 >
                     <Plus className="w-4 h-4 shrink-0 transition-transform group-hover:rotate-90" />
@@ -213,7 +220,7 @@ export default function Sidebar({ onSchemaToggle }: SidebarProps) {
                             return (
                                 <div key={item.id} className="relative group/row">
                                     <div
-                                        onClick={() => { if (!isRenaming) { setActiveChat(item.id); goToChat(); } }}
+                                        onClick={() => { if (!isRenaming) { setActiveChat(item.id); goToChat(); onMobileClose?.(); } }}
                                         className={cn(
                                             "flex items-center gap-2 w-full px-3 py-2 rounded-xl transition-all cursor-pointer select-none border-l-2",
                                             isActive

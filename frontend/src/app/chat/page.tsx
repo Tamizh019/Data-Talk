@@ -203,6 +203,7 @@ function ChatLayout() {
 
     // Panel states
     const [schemaOpen, setSchemaOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     useEffect(() => { setMounted(true); }, []);
 
@@ -264,8 +265,18 @@ function ChatLayout() {
                 style={{ background: "radial-gradient(circle at 50% 50%, var(--bloom-color) 0%, transparent 70%)", filter: "blur(80px)" }}
             />
 
-            {/* ── Sidebar (Claude-style with conversations built-in) ── */}
-            <Sidebar onSchemaToggle={() => setSchemaOpen(v => !v)} />
+            {/* ── Mobile sidebar backdrop ── */}
+            <div
+                className={`sidebar-backdrop md:hidden ${sidebarOpen ? 'open' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+            />
+
+            {/* ── Sidebar ── */}
+            <Sidebar
+                onSchemaToggle={() => setSchemaOpen(v => !v)}
+                mobileOpen={sidebarOpen}
+                onMobileClose={() => setSidebarOpen(false)}
+            />
 
             {/* ── Main content ── */}
             <div className="flex-1 flex flex-col overflow-hidden relative z-10 min-w-0">
@@ -280,10 +291,19 @@ function ChatLayout() {
                         borderBottom: "1px solid var(--header-border)",
                     }}
                 >
-                    {/* Left — active conversation title */}
+                    {/* Left — hamburger (mobile) + title */}
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setSidebarOpen(true)}
+                            className="md:hidden w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors -ml-1"
+                            aria-label="Open sidebar"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </button>
                         <Sparkles className="w-4 h-4 shrink-0" style={{ color: "#7C6FFF" }} />
-                        <span className="font-semibold text-[14px] tracking-tight text-foreground/85 truncate max-w-[300px]">
+                        <span className="font-semibold text-[14px] tracking-tight text-foreground/85 truncate max-w-[200px] md:max-w-[300px]">
                             {activeConversation?.title || "Data-Talk AI"}
                         </span>
                     </div>
@@ -291,12 +311,12 @@ function ChatLayout() {
                     {/* Right */}
                     <div className="flex items-center gap-2">
 
-                        {/* Schema toggle button — always visible in header */}
+                        {/* Schema toggle — hide label on mobile */}
                         <button
                             onClick={() => setSchemaOpen(v => !v)}
                             title="Toggle Schema Explorer"
                             className={cn(
-                                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all",
+                                "flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-full text-[11px] font-bold transition-all",
                                 schemaOpen
                                     ? "text-white"
                                     : "text-muted-foreground hover:text-foreground"
@@ -310,7 +330,7 @@ function ChatLayout() {
                             }}
                         >
                             <Database className="w-3.5 h-3.5" />
-                            Schema
+                            <span className="hidden sm:inline">Schema</span>
                         </button>
 
                         {/* DB pill */}
@@ -354,11 +374,11 @@ function ChatLayout() {
                             )}
                         </div>
 
-                        <div className="w-px h-5 bg-border/60" />
-                        <button className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                        <div className="w-px h-5 bg-border/60 hidden sm:block" />
+                        <button className="hidden sm:flex w-8 h-8 rounded-lg items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
                             <Share2 className="w-4 h-4" />
                         </button>
-                        <button className="w-8 h-8 rounded-lg flex items-center justify-center relative text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                        <button className="hidden sm:flex w-8 h-8 rounded-lg items-center justify-center relative text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
                             <Bell className="w-4 h-4" />
                             <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: "#7C6FFF" }} />
                         </button>

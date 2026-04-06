@@ -270,7 +270,7 @@ export default function ProfilePage() {
             />
 
             {/* ── Header ── */}
-            <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/60 h-14 flex items-center px-6">
+            <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/60 h-14 flex items-center px-4 sm:px-6">
                 <div className="max-w-5xl w-full mx-auto flex items-center justify-between">
                     <Link
                         href="/chat"
@@ -287,11 +287,11 @@ export default function ProfilePage() {
             </header>
 
             {/* ── Page body ── */}
-            <main className="relative z-10 max-w-5xl mx-auto px-6 py-10">
-                <div className="flex flex-col md:flex-row gap-7">
+            <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10 safe-bottom">
+                <div className="flex flex-col md:flex-row gap-5 sm:gap-7">
 
                     {/* ════ LEFT COLUMN ════ */}
-                    <div className="w-full md:w-[280px] shrink-0 flex flex-col gap-5">
+                    <div className="w-full md:w-[280px] shrink-0 flex flex-col gap-4 sm:gap-5">
 
                         {/* Identity Card */}
                         <SectionCard>
@@ -381,7 +381,7 @@ export default function ProfilePage() {
                     </div>
 
                     {/* ════ RIGHT COLUMN ════ */}
-                    <div className="flex-1 flex flex-col gap-5">
+                    <div className="flex-1 flex flex-col gap-4 sm:gap-5">
 
                         {/* ── Profile details ── */}
                         <SectionCard>
