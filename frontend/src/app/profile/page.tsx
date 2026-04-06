@@ -24,7 +24,7 @@ export default function ProfilePage() {
     useEffect(() => {
         if (user?.user_metadata) {
             setFormData({
-                full_name: user.user_metadata.full_name || user.user_metadata.name || "",
+                full_name: user.user_metadata.full_name || user.user_metadata.name || (user.user_metadata.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ""}`.trim() : ""),
                 job_title: user.user_metadata.job_title || "",
                 company: user.user_metadata.company || "",
                 department: user.user_metadata.department || "",
@@ -244,7 +244,7 @@ export default function ProfilePage() {
                                     onClick={() => {
                                         // Reset form data on cancel
                                         setFormData({
-                                            full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || "",
+                                            full_name: user?.user_metadata?.full_name || user?.user_metadata?.name || (user?.user_metadata?.first_name ? `${user.user_metadata.first_name} ${user.user_metadata.last_name || ""}`.trim() : ""),
                                             job_title: user?.user_metadata?.job_title || "",
                                             company: user?.user_metadata?.company || "",
                                             department: user?.user_metadata?.department || "",

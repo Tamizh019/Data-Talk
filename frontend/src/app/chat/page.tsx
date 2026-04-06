@@ -376,9 +376,11 @@ function ChatLayout() {
                                 className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white hover:scale-105 transition-transform"
                                 style={{ background: "linear-gradient(135deg,#7C6FFF,#00C9B1)" }}
                             >
-                                {user?.user_metadata?.full_name
-                                    ? user.user_metadata.full_name[0].toUpperCase()
-                                    : user?.email ? user.email[0].toUpperCase() : "DT"}
+                                {(() => {
+                                    const m = user?.user_metadata;
+                                    const n = m?.full_name || m?.name || (m?.first_name ? `${m.first_name}` : null);
+                                    return n ? n[0].toUpperCase() : (user?.email ? user.email[0].toUpperCase() : "DT");
+                                })()}
                             </button>
                             <div
                                 className="absolute top-full right-0 mt-2 hidden group-hover:flex flex-col w-36 py-1.5 rounded-xl z-50 animate-fadein"

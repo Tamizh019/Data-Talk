@@ -30,6 +30,7 @@ export async function middleware(request: NextRequest) {
     const isLoginPage = request.nextUrl.pathname.startsWith("/login");
     const isSignupPage = request.nextUrl.pathname.startsWith("/signup");
     const isAuthCallback = request.nextUrl.pathname.startsWith("/auth");
+    const isOnboarding = request.nextUrl.pathname.startsWith("/onboarding");
     const isPublicPage = isLoginPage || isSignupPage || isAuthCallback;
 
     // If not logged in and not on a public page, redirect to login
@@ -39,10 +40,11 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(url);
     }
 
-    // If logged in and on login or signup page, redirect to chat
+    // If logged in and on login or signup page, redirect appropriately
     if (user && (isLoginPage || isSignupPage)) {
         const url = request.nextUrl.clone();
-        url.pathname = "/chat";
+        // If onboarding not complete yet, send there; otherwise chat
+        url.pathname = user.user_metadata?.onboarding_complete ? "/chat" : "/onboarding";
         return NextResponse.redirect(url);
     }
 

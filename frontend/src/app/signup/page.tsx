@@ -119,13 +119,87 @@ function Spinner() {
 }
 
 export default function SignupPage() {
-    const { signInWithGoogle, signInWithGithub } = useAuth();
-    const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
+    const { signInWithGoogle, signInWithGithub, signUpWithPassword, verifyOtpSignup } = useAuth();
+    const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | "email" | null>(null);
     const [showPw, setShowPw] = useState(false);
     const [agreed, setAgreed] = useState(false);
 
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [localError, setLocalError] = useState<string | null>(null);
+
+    // OTP States
+    const [step, setStep] = useState<"form" | "otp">("form");
+    const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
+    const [verifying, setVerifying] = useState(false);
+
     const handleGoogle = async () => { setLoadingProvider("google"); await signInWithGoogle(); };
     const handleGithub = async () => { setLoadingProvider("github"); await signInWithGithub(); };
+
+    const handleEmailSignup = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLocalError(null);
+        if (!agreed) return;
+        setLoadingProvider("email");
+        try {
+            await signUpWithPassword(email, password, { first_name: firstName, last_name: lastName });
+            setStep("otp");
+        } catch (err: any) {
+            setLocalError(err.message || "Failed to create account. Please try again.");
+        } finally {
+            setLoadingProvider(null);
+        }
+    };
+
+    const handleOtpChange = (index: number, value: string) => {
+        if (!/^\d*$/.test(value)) return;
+        
+        const newOtp = [...otp];
+        // Allow pasting
+        if (value.length > 1) {
+            const pastedData = value.slice(0, 6).split('');
+            for (let i = 0; i < 6; i++) {
+                if (pastedData[i]) newOtp[i] = pastedData[i];
+            }
+            setOtp(newOtp);
+            const nextIndex = Math.min(pastedData.length, 5);
+            document.getElementById(`otp-${nextIndex}`)?.focus();
+            return;
+        }
+
+        newOtp[index] = value;
+        setOtp(newOtp);
+
+        if (value && index < 5) {
+            document.getElementById(`otp-${index + 1}`)?.focus();
+        }
+    };
+
+    const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Backspace' && !otp[index] && index > 0) {
+            document.getElementById(`otp-${index - 1}`)?.focus();
+        }
+    };
+
+    const handleVerifyOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLocalError(null);
+        const code = otp.join('');
+        if (code.length !== 6) {
+            setLocalError("Please enter all 6 digits.");
+            return;
+        }
+        setVerifying(true);
+        try {
+            await verifyOtpSignup(email, code);
+            window.location.href = "/onboarding";
+        } catch (err: any) {
+            setLocalError(err.message || "Invalid verification code. Please try again.");
+            setVerifying(false);
+        }
+    };
 
     return (
         <div className="flex min-h-screen bg-[#F7F8FC] relative">
@@ -143,12 +217,30 @@ export default function SignupPage() {
                 <div className="w-full max-w-[400px] animate-fadein">
                     {/* Header */}
                     <div className="mb-8">
-                        <h1 className="text-[26px] font-bold text-slate-900 tracking-tight mb-1.5">Create your account</h1>
-                        <p className="text-[14px] text-slate-500">Start querying your data in minutes. Free forever.</p>
+                        <h1 className="text-[26px] font-bold text-slate-900 tracking-tight mb-1.5">
+                            {step === "form" ? "Create your account" : "Verify your email"}
+                        </h1>
+                        <p className="text-[14px] text-slate-500">
+                            {step === "form" 
+                                ? "Start querying your data in minutes. Free forever." 
+                                : `We've sent a 6-digit code to ${email}.`}
+                        </p>
                     </div>
 
-                    {/* OAuth */}
-                    <div className="grid grid-cols-2 gap-3 mb-7">
+                    {/* Messages */}
+                    {localError && (
+                        <div className="mb-6 px-4 py-3 rounded-xl text-[13px] font-medium bg-red-50 border border-red-100 text-red-600 flex items-center gap-2">
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {localError}
+                        </div>
+                    )}
+
+                    {step === "form" ? (
+                        <>
+                            {/* OAuth */}
+                            <div className="grid grid-cols-2 gap-3 mb-7">
                         <button
                             onClick={handleGoogle}
                             disabled={loadingProvider !== null}
@@ -175,7 +267,7 @@ export default function SignupPage() {
                     </div>
 
                     {/* Form */}
-                    <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+                    <form className="space-y-4" onSubmit={handleEmailSignup}>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-[12px] font-semibold text-slate-600 mb-2">First name</label>
@@ -183,6 +275,9 @@ export default function SignupPage() {
                                     type="text"
                                     autoComplete="given-name"
                                     placeholder="John"
+                                    value={firstName}
+                                    onChange={(e) => setFirstName(e.target.value)}
+                                    required
                                     className="w-full px-4 py-3 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
                                 />
                             </div>
@@ -192,6 +287,9 @@ export default function SignupPage() {
                                     type="text"
                                     autoComplete="family-name"
                                     placeholder="Doe"
+                                    value={lastName}
+                                    onChange={(e) => setLastName(e.target.value)}
+                                    required
                                     className="w-full px-4 py-3 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
                                 />
                             </div>
@@ -203,6 +301,9 @@ export default function SignupPage() {
                                 type="email"
                                 autoComplete="email"
                                 placeholder="you@company.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
                                 className="w-full px-4 py-3 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
                             />
                         </div>
@@ -214,6 +315,9 @@ export default function SignupPage() {
                                     type={showPw ? "text" : "password"}
                                     autoComplete="new-password"
                                     placeholder="Min. 8 characters"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
                                     className="w-full px-4 py-3 pr-12 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
                                 />
                                 <button
@@ -262,21 +366,60 @@ export default function SignupPage() {
                         </label>
 
                         <button
-                            disabled={!agreed}
-                            className="w-full py-3.5 rounded-[12px] text-[14px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] mt-1 shadow-lg shadow-[#6C5FE6]/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                            type="submit"
+                            disabled={!agreed || loadingProvider !== null || !email || !password || !firstName || !lastName}
+                            className="w-full py-3.5 rounded-[12px] text-[14px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] mt-1 shadow-lg shadow-[#6C5FE6]/20 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             style={{ background: "linear-gradient(135deg, #6C5FE6 0%, #4B3BFF 100%)" }}
                         >
-                            Create free account
+                            {loadingProvider === "email" && <Spinner />}
+                            {loadingProvider === "email" ? "Creating account..." : "Create free account"}
                         </button>
                     </form>
 
-                    {/* Footer link */}
-                    <p className="text-center text-[13px] text-slate-500 mt-8">
-                        Already have an account?{" "}
-                        <Link href="/login" className="font-semibold text-[#6C5FE6] hover:text-[#5040d0] transition-colors">
-                            Sign in
-                        </Link>
-                    </p>
+                            {/* Footer link */}
+                            <p className="text-center text-[13px] text-slate-500 mt-8">
+                                Already have an account?{" "}
+                                <Link href="/login" className="font-semibold text-[#6C5FE6] hover:text-[#5040d0] transition-colors">
+                                    Sign in
+                                </Link>
+                            </p>
+                        </>
+                    ) : (
+                        <form className="space-y-6" onSubmit={handleVerifyOtp}>
+                            <div className="flex gap-3 justify-center mb-2">
+                                {otp.map((digit, i) => (
+                                    <input
+                                        key={i}
+                                        id={`otp-${i}`}
+                                        type="text"
+                                        inputMode="numeric"
+                                        maxLength={6}
+                                        value={digit}
+                                        onChange={(e) => handleOtpChange(i, e.target.value)}
+                                        onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                                        className="w-12 h-14 text-center text-[22px] font-bold rounded-[12px] bg-white border border-slate-200 text-[#6C5FE6] focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
+                                    />
+                                ))}
+                            </div>
+                            
+                            <button
+                                type="submit"
+                                disabled={verifying || otp.join('').length !== 6}
+                                className="w-full py-3.5 rounded-[12px] text-[14px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] mt-1 shadow-lg shadow-[#6C5FE6]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                style={{ background: "linear-gradient(135deg, #6C5FE6 0%, #4B3BFF 100%)" }}
+                            >
+                                {verifying && <Spinner />}
+                                {verifying ? "Verifying..." : "Verify Account"}
+                            </button>
+                            
+                            <p className="text-center text-[13px] text-slate-500 mt-6">
+                                Didn't receive the code?{" "}
+                                <button type="button" className="font-semibold text-[#6C5FE6] hover:text-[#5040d0] transition-colors">
+                                    Resend
+                                </button>
+                            </p>
+                        </form>
+                    )}
                 </div>
 
                 {/* Bottom */}

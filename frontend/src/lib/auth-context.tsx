@@ -10,6 +10,9 @@ interface AuthContextType {
     isLoading: boolean;
     signInWithGoogle: () => Promise<void>;
     signInWithGithub: () => Promise<void>;
+    signInWithPassword: (email: string, password: string) => Promise<void>;
+    signUpWithPassword: (email: string, password: string, userData: Record<string, any>) => Promise<void>;
+    verifyOtpSignup: (email: string, token: string) => Promise<void>;
     signOut: () => Promise<void>;
     updateProfile: (data: Record<string, any>) => Promise<void>;
 }
@@ -58,6 +61,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
     };
 
+    const signInWithPassword = async (email: string, password: string) => {
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+        });
+        if (error) throw error;
+    };
+
+    const signUpWithPassword = async (email: string, password: string, userData: Record<string, any>) => {
+        const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: userData,
+            },
+        });
+        if (error) throw error;
+    };
+
+    const verifyOtpSignup = async (email: string, token: string) => {
+        const { error } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: "signup",
+        });
+        if (error) throw error;
+    };
+
     const signOut = async () => {
         await supabase.auth.signOut();
         window.location.href = "/login";
@@ -74,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, session, isLoading, signInWithGoogle, signInWithGithub, signOut, updateProfile }}>
+        <AuthContext.Provider value={{ user, session, isLoading, signInWithGoogle, signInWithGithub, signInWithPassword, signUpWithPassword, verifyOtpSignup, signOut, updateProfile }}>
             {children}
         </AuthContext.Provider>
     );

@@ -25,8 +25,12 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-const STORAGE_KEY = "datatalk_history";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/** Returns a user-scoped localStorage key so different users never share history. */
+function storageKey(userId: string) {
+    return `datatalk_history_${userId}`;
+}
 
 export function buildWelcomeMessages(): ChatMessage[] {
     const defaultMsg: ChatMessage = {
@@ -54,21 +58,34 @@ export function buildWelcomeMessages(): ChatMessage[] {
 /**
  * Sync conversations to Supabase via backend API.
  * Fires-and-forgets — failures are silently logged so they never break the UI.
+ *
+ * We save a capped snapshot of rows (max 200 per message) so that chart
+ * regeneration (violin, box, bar, etc.) works correctly when the user
+ * reloads or signs back in. Without rows, row-derived charts show
+ * "No data available" on restore.
  */
 async function syncToSupabase(conversations: Conversation[], token: string) {
     try {
-        // Only sync the 20 most recent; strip heavy fields (rows/charts) to keep payload small
+        // Only sync the 20 most recent conversations
         const recent = conversations.slice(0, 20).map(c => ({
             id: c.id,
             title: c.title,
-            updated_at: c.updatedAt,         // ← snake_case to match Pydantic model
+            updated_at: c.updatedAt,        
             messages: c.messages.map(m => ({
                 role: m.role,
                 content: m.content,
                 sql: m.sql,
                 createdAt: m.createdAt,
                 error: m.error,
-                // deliberately omit: rows, charts, steps (too heavy for Supabase storage)
+                // Persist charts + a capped rows snapshot so visualizations restore correctly.
+                // 200 rows is enough for chart regeneration while keeping payload small.
+                charts: m.charts,
+                columns: m.columns,
+                rowCount: m.rowCount,
+                attempts: m.attempts,
+                isCached: m.isCached,
+                rows: m.rows ? (m.rows as any[]).slice(0, 200) : undefined,
+                // deliberately omit: steps (transient streaming state)
             })),
         }));
         await fetch(`${API_URL}/api/conversations/sync`, {
@@ -119,6 +136,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const supabase = useRef(createClient()).current;
     // Store the session token so sync functions can use it
     const sessionTokenRef = useRef<string | null>(null);
+    // Store the current user ID for localStorage namespacing
+    const userIdRef = useRef<string | null>(null);
     // Debounce timer ref for syncing
     const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -127,6 +146,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const loadConversations = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             sessionTokenRef.current = session?.access_token ?? null;
+            userIdRef.current = session?.user?.id ?? null;
+
+            // Clean up legacy shared key (before per-user namespacing was introduced)
+            localStorage.removeItem("datatalk_history");
 
             // Try Supabase first if logged in
             if (session?.access_token) {
@@ -139,24 +162,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
             }
 
-            // Fallback: localStorage
-            try {
-                const stored = localStorage.getItem(STORAGE_KEY);
-                if (stored) {
-                    const parsed = JSON.parse(stored) as Conversation[];
-                    if (parsed.length > 0) {
-                        setConversations(parsed);
-                        setActiveId(parsed[0].id);
-                        setIsLoaded(true);
-                        // Immediately back-fill Supabase with local history
-                        if (session?.access_token) {
-                            syncToSupabase(parsed, session.access_token);
+            // Fallback: user-scoped localStorage (only if we have a user ID)
+            if (session?.user?.id) {
+                try {
+                    const key = storageKey(session.user.id);
+                    const stored = localStorage.getItem(key);
+                    if (stored) {
+                        const parsed = JSON.parse(stored) as Conversation[];
+                        if (parsed.length > 0) {
+                            setConversations(parsed);
+                            setActiveId(parsed[0].id);
+                            setIsLoaded(true);
+                            // Back-fill Supabase with local history
+                            if (session?.access_token) {
+                                syncToSupabase(parsed, session.access_token);
+                            }
+                            return;
                         }
-                        return;
                     }
+                } catch (e) {
+                    console.error("Failed to load chat history:", e);
                 }
-            } catch (e) {
-                console.error("Failed to load chat history:", e);
             }
 
             // Initialize empty if nothing found
@@ -175,10 +201,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         loadConversations();
     }, []);
 
-    // ── Save to localStorage + debounced Supabase sync on every change ──────
+    // ── Save to user-scoped localStorage + debounced Supabase sync ──────────
     useEffect(() => {
         if (!isLoaded) return;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+        // Only write to localStorage if we know who the user is
+        if (userIdRef.current) {
+            localStorage.setItem(storageKey(userIdRef.current), JSON.stringify(conversations));
+        }
 
         // Debounce Supabase sync by 2 seconds to avoid hammering on every keypress
         if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
@@ -189,10 +218,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }, 2000);
     }, [conversations, isLoaded]);
 
-    // Keep session token fresh
+    // ── Keep session token + userId fresh; clear state on sign-out ──────────
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            const newUserId = session?.user?.id ?? null;
+
+            // If the user changed (sign-out or switched account), reset local state
+            if (userIdRef.current && newUserId !== userIdRef.current) {
+                setConversations([]);
+                setActiveId(null);
+                setIsLoaded(false);
+            }
+
             sessionTokenRef.current = session?.access_token ?? null;
+            userIdRef.current = newUserId;
         });
         return () => subscription.unsubscribe();
     }, []);

@@ -81,6 +81,10 @@ export default function Sidebar({ onSchemaToggle }: SidebarProps) {
         if (pathname !== "/chat") router.push("/chat");
     };
 
+    const meta = user?.user_metadata || {};
+    const displayName = meta.full_name || meta.name || (meta.first_name ? `${meta.first_name} ${meta.last_name || ""}`.trim() : null) || "Premium User";
+    const initial = displayName !== "Premium User" ? displayName.charAt(0).toUpperCase() : (user?.email ? user.email.charAt(0).toUpperCase() : "DT");
+
     return (
         <div
             className="flex flex-col h-full shrink-0 z-40 relative transition-colors duration-300"
@@ -312,13 +316,11 @@ export default function Sidebar({ onSchemaToggle }: SidebarProps) {
                         className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-white text-[12px] shrink-0"
                         style={{ background: "linear-gradient(135deg, #7C6FFF, #00C9B1)" }}
                     >
-                        {user?.user_metadata?.full_name
-                            ? user.user_metadata.full_name.charAt(0).toUpperCase()
-                            : user?.email ? user.email.charAt(0).toUpperCase() : "DT"}
+                        {initial}
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-semibold text-foreground truncate">
-                            {user?.user_metadata?.full_name || user?.user_metadata?.name || "Premium User"}
+                            {displayName}
                         </p>
                         <p className="text-[9px] text-muted-foreground/50 truncate">
                             {user?.email || "Workspace Admin"}

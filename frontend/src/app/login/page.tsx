@@ -142,14 +142,30 @@ function Spinner() {
    LOGIN CONTENT
 ───────────────────────────────────── */
 function LoginContent() {
-    const { signInWithGoogle, signInWithGithub } = useAuth();
-    const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
+    const { signInWithGoogle, signInWithGithub, signInWithPassword } = useAuth();
+    const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | "email" | null>(null);
     const [showPw, setShowPw] = useState(false);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [localError, setLocalError] = useState<string | null>(null);
     const searchParams = useSearchParams();
     const error = searchParams.get("error");
 
     const handleGoogle = async () => { setLoadingProvider("google"); await signInWithGoogle(); };
     const handleGithub = async () => { setLoadingProvider("github"); await signInWithGithub(); };
+
+    const handleEmailLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLocalError(null);
+        setLoadingProvider("email");
+        try {
+            await signInWithPassword(email, password);
+            window.location.href = "/";
+        } catch (err: any) {
+            setLocalError(err.message || "Failed to sign in. Please check your credentials.");
+            setLoadingProvider(null);
+        }
+    };
 
     return (
         <div className="flex min-h-screen bg-[#F7F8FC] relative">
@@ -172,12 +188,12 @@ function LoginContent() {
                     </div>
 
                     {/* Error */}
-                    {error && (
+                    {(error || localError) && (
                         <div className="mb-6 px-4 py-3 rounded-xl text-[13px] font-medium bg-red-50 border border-red-100 text-red-600 flex items-center gap-2">
                             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            Authentication failed. Please try again.
+                            {localError || "Authentication failed. Please try again."}
                         </div>
                     )}
 
@@ -209,13 +225,16 @@ function LoginContent() {
                     </div>
 
                     {/* Form */}
-                    <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+                    <form className="space-y-5" onSubmit={handleEmailLogin}>
                         <div>
                             <label className="block text-[12px] font-semibold text-slate-600 mb-2">Email</label>
                             <input
                                 type="email"
                                 autoComplete="email"
                                 placeholder="you@company.com"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
                                 className="w-full px-4 py-3 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
                             />
                         </div>
@@ -230,6 +249,9 @@ function LoginContent() {
                                     type={showPw ? "text" : "password"}
                                     autoComplete="current-password"
                                     placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
                                     className="w-full px-4 py-3 pr-12 rounded-[12px] bg-white border border-slate-200 text-[14px] text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#6C5FE6] focus:ring-[3px] focus:ring-[#6C5FE6]/10 transition-all shadow-sm"
                                 />
                                 <button
@@ -247,10 +269,13 @@ function LoginContent() {
                         </div>
 
                         <button
-                            className="w-full py-3.5 rounded-[12px] text-[14px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] mt-1 shadow-lg shadow-[#6C5FE6]/20"
+                            type="submit"
+                            disabled={loadingProvider !== null || !email || !password}
+                            className="w-full py-3.5 rounded-[12px] text-[14px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] mt-1 shadow-lg shadow-[#6C5FE6]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                             style={{ background: "linear-gradient(135deg, #6C5FE6 0%, #4B3BFF 100%)" }}
                         >
-                            Sign in to Data-Talk
+                            {loadingProvider === "email" && <Spinner />}
+                            {loadingProvider === "email" ? "Signing in..." : "Sign in to Data-Talk"}
                         </button>
                     </form>
 
