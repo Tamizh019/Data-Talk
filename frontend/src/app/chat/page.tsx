@@ -279,11 +279,11 @@ function ChatLayout() {
             />
 
             {/* ── Main content ── */}
-            <div className="flex-1 flex flex-col overflow-hidden relative z-10 min-w-0">
+            <div className="flex-1 flex flex-col overflow-hidden overflow-x-hidden relative z-10 min-w-0" style={{ maxWidth: "100%" }}>
 
                 {/* Top Bar */}
                 <header
-                    className="h-14 flex items-center justify-between px-6 z-50 shrink-0 transition-colors duration-300"
+                    className="h-14 flex items-center justify-between px-3 sm:px-6 z-50 shrink-0 transition-colors duration-300"
                     style={{
                         background: "var(--glass-bg)",
                         backdropFilter: "blur(20px)",
@@ -311,12 +311,12 @@ function ChatLayout() {
                     {/* Right */}
                     <div className="flex items-center gap-2">
 
-                        {/* Schema toggle — hide label on mobile */}
+                        {/* Schema toggle — hide on small mobile */}
                         <button
                             onClick={() => setSchemaOpen(v => !v)}
                             title="Toggle Schema Explorer"
                             className={cn(
-                                "flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-full text-[11px] font-bold transition-all",
+                                "hidden sm:flex items-center gap-1.5 px-2.5 md:px-3 py-1.5 rounded-full text-[11px] font-bold transition-all",
                                 schemaOpen
                                     ? "text-white"
                                     : "text-muted-foreground hover:text-foreground"
@@ -347,7 +347,7 @@ function ChatLayout() {
                                     className="w-1.5 h-1.5 rounded-full shrink-0"
                                     style={{ background: dbConnected ? "#34d399" : "#f87171", boxShadow: dbConnected ? "0 0 6px #34d399" : "0 0 6px #f87171" }}
                                 />
-                                {dbConnected ? "Connected" : "Connect DB"}
+                                <span className="hidden sm:inline">{dbConnected ? "Connected" : "Connect DB"}</span>
                             </button>
                             {showDbPopover && dbConnected && (
                                 <div

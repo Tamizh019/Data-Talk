@@ -125,10 +125,11 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
 
     return (
         <div
-            className="overflow-hidden rounded-xl mt-3 shadow-lg"
+            className="overflow-hidden rounded-xl mt-3 shadow-lg max-w-full"
             style={{
                 background: "var(--code-bg)",
                 border: "1px solid rgba(124,111,255,0.20)",
+                overflowX: "auto",
             }}
         >
             {/* Header */}
@@ -197,7 +198,7 @@ export default function SQLDisplay({ sql, attempts = 1 }: SQLDisplayProps) {
                     background: "transparent",
                     fontSize: "13px",
                     lineHeight: "1.75",
-                    whiteSpace: "pre",
+                    whiteSpace: "pre-wrap",
                 }}
                 codeTagProps={{ style: { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" } }}
             >

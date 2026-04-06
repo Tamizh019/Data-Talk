@@ -68,7 +68,7 @@ export default function DataTable({ config }: DataTableProps) {
 
     return (
         <div
-            className="w-full overflow-hidden rounded-xl shadow-md"
+            className="w-full max-w-full overflow-hidden rounded-xl shadow-md"
             style={{
                 background: "var(--table-bg)",
                 border: "1px solid var(--table-border)",

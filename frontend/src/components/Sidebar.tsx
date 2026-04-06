@@ -107,10 +107,10 @@ export default function Sidebar({ onSchemaToggle, mobileOpen = false, onMobileCl
             <div className="flex items-center gap-1.5 px-5 pt-5 pb-4 shrink-0">
                 <div className="w-12 h-12 flex items-center justify-center shrink-0">
                     {mounted ? (
-                        <img 
-                            src={theme === "dark" ? "/logo1.png" : "/logo.png"} 
-                            alt="Data-Talk Logo" 
-                            className="w-full h-full object-contain drop-shadow-md transition-opacity" 
+                        <img
+                            src={theme === "dark" ? "/logo1.png" : "/logo.png"}
+                            alt="Data-Talk Logo"
+                            className="w-full h-full object-contain drop-shadow-md transition-opacity"
                         />
                     ) : (
                         <div className="w-full h-full rounded-xl bg-foreground/10 animate-pulse" />

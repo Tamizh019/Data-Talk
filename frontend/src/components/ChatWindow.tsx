@@ -184,7 +184,7 @@ function SmartFilterPanel({
 
     if (!rows || rows.length === 0) {
         return (
-            <div className="w-80 h-full shrink-0 border-l flex flex-col items-center justify-center p-6 text-center"
+            <div className="hidden md:flex w-80 h-full shrink-0 border-l flex-col items-center justify-center p-6 text-center"
                  style={{ borderColor: "var(--glass-border)", background: "rgba(0,0,0,0.15)" }}>
                 <div className="w-12 h-12 rounded-2xl mb-4 flex items-center justify-center"
                     style={{ background: "rgba(124,111,255,0.05)", border: "1px dashed rgba(124,111,255,0.2)" }}>
@@ -200,7 +200,7 @@ function SmartFilterPanel({
 
     if (colMeta.length === 0) {
          return (
-            <div className="w-80 h-full shrink-0 border-l flex flex-col"
+            <div className="hidden md:flex w-80 h-full shrink-0 border-l flex-col"
                  style={{ borderColor: "var(--glass-border)", background: "rgba(0,0,0,0.15)" }}>
                  <div className="p-4 border-b flex items-center gap-2" style={{ borderColor: "var(--glass-border)" }}>
                     <Filter className="w-4 h-4 text-[#7C6FFF]" />
@@ -217,7 +217,7 @@ function SmartFilterPanel({
     }
 
     return (
-        <div className="w-80 h-full shrink-0 border-l flex flex-col overflow-hidden"
+        <div className="hidden md:flex w-80 h-full shrink-0 border-l flex-col overflow-hidden"
              style={{ borderColor: "var(--glass-border)", background: "var(--glass-bg)" }}>
             
             {/* Header */}
@@ -641,12 +641,12 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
     const activeColumns = activeData?.columns as string[] | undefined;
 
     return (
-        <div className="flex flex-row h-full w-full overflow-hidden transition-colors duration-300">
+        <div className="flex flex-row h-full w-full overflow-hidden transition-colors duration-300" style={{ maxWidth: "100vw" }}>
             {/* ── Chat Content (Left 75%) ── */}
             <div className="flex-1 flex flex-col min-w-0 h-full relative">
                 {/* Scroll Area */}
-                <div className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar">
-                    <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth custom-scrollbar">
+                    <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6 sm:space-y-8">
                         {messages.map((msg, i) =>
                             msg.role === "user" ? (
                                 <div key={i} className="flex flex-col items-end gap-1 animate-fadein">
@@ -749,7 +749,7 @@ export default function ChatWindow({ dbConnected }: ChatWindowProps) {
                 </div>
 
                 {/* Input Area */}
-                <div className="shrink-0 px-6 pb-6 pt-2 flex flex-col items-center gap-3 bg-gradient-to-t from-background via-background to-transparent z-10">
+                <div className="shrink-0 px-3 sm:px-6 pb-4 sm:pb-6 pt-2 flex flex-col items-center gap-3 bg-gradient-to-t from-background via-background to-transparent z-10">
 
                     <div className="w-full max-w-5xl relative group">
                         {/* @ Mention Dropdown */}
