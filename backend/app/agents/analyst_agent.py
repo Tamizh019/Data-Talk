@@ -14,21 +14,23 @@ settings = get_settings()
 
 client = AsyncGroq(api_key=settings.groq_api_key)
 
-ANALYST_SYSTEM = """You are Data-Talk AI, a Senior Data Analyst.
-Your job: read a data result set and produce a clear, factual business analysis.
+ANALYST_SYSTEM = """You are Data-Talk AI, a Senior Data Analyst tasked with analyzing exactly the data rows provided.
 
-RULES:
-- DO NOT mention SQL, databases, arrays, or any technical terms
-- Use plain business language suitable for a non-technical manager
-- Always include specific numbers from the data
-- Keep bullets concise (1–2 sentences each)
-- Do NOT invent data that is not in the result set
+╔══════════════════════════════════════════════════════╗
+║  CRITICAL ANTI-HALLUCINATION RULES — READ CAREFULLY ║
+╚══════════════════════════════════════════════════════╝
+1. ONLY use names, numbers, and values that appear EXACTLY in the DATA ROWS below.
+2. NEVER invent, guess, or approximate any name, value, or fact.
+3. If a name is not in the data, DO NOT mention it. Period.
+4. Copy names and numbers character-for-character from the data — do not paraphrase them.
+5. DO NOT mention SQL, databases, arrays, or any technical terms.
+6. Use plain business language suitable for a non-technical manager.
 
-OUTPUT FORMAT — use this structure:
+OUTPUT FORMAT — use this structure exactly:
 [FINDINGS]
-• Finding 1 with specific numbers
-• Finding 2 with specific numbers  
-• Finding 3 (trends, comparisons, outliers if present)
+• Finding 1 with exact numbers from the data
+• Finding 2 with exact numbers from the data
+• Finding 3 (trends, comparisons, outliers — only if the data supports it)
 
 [RECOMMENDATION]
 One clear, actionable recommendation starting with a verb.
@@ -42,7 +44,19 @@ One clear, actionable recommendation starting with a verb.
 
 async def explain_results(question: str, rows: list, columns: list) -> str:
     """Produces structured raw analysis from a SQL result set."""
-    preview = rows[:20] if rows else []
+    preview = rows[:50] if rows else []
+
+    # Build an explicit numbered table string so the LLM can't confuse or hallucinate values
+    table_lines = ["\nDATA ROWS (use ONLY these values — do not invent any):"]
+    header = " | ".join(columns)
+    table_lines.append(f"{'#':>3}  {header}")
+    table_lines.append("-" * (len(header) + 6))
+    for i, row in enumerate(preview, 1):
+        row_str = " | ".join(str(row.get(c, "")) for c in columns)
+        table_lines.append(f"{i:>3}. {row_str}")
+    if len(rows) > len(preview):
+        table_lines.append(f"  ... and {len(rows) - len(preview)} more rows (not shown, do not reference them by name)")
+    data_table = "\n".join(table_lines)
 
     # Pre-compute basic stats to reduce LLM reasoning load
     stats_lines = []
@@ -56,9 +70,10 @@ async def explain_results(question: str, rows: list, columns: list) -> str:
 
     prompt = (
         f"User asked: \"{question}\"\n"
-        f"Data: {len(rows)} rows, columns: {columns}\n"
-        f"Pre-computed numeric stats:\n{stats_summary}\n"
-        f"Sample rows (first 20): {preview}\n\n"
+        f"Total rows returned: {len(rows)} | Columns: {columns}\n"
+        f"Pre-computed numeric stats (verified from data):\n{stats_summary}\n"
+        f"{data_table}\n\n"
+        f"IMPORTANT: Every name, number, and fact you write MUST come directly from the DATA ROWS above.\n"
         f"Produce your structured analysis:"
     )
 
@@ -69,7 +84,7 @@ async def explain_results(question: str, rows: list, columns: list) -> str:
                 {"role": "system", "content": ANALYST_SYSTEM},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,
+            temperature=0,   # Zero temperature = maximum factual fidelity, no creative guessing
             max_tokens=900
         )
         return completion.choices[0].message.content.strip()
@@ -81,7 +96,7 @@ async def explain_results(question: str, rows: list, columns: list) -> str:
                 {"role": "user", "content": prompt}
             ]
             return await github_chat_completion(
-                tier="heavy", messages=messages, temperature=0.3, max_tokens=900
+                tier="heavy", messages=messages, temperature=0, max_tokens=900
             )
         except Exception as fallback_err:
             logger.error(f"[AnalystAgent] Fallback also failed: {fallback_err}.")
@@ -142,3 +157,46 @@ You are NOT a general-purpose AI. You are a specialized autonomous database agen
         except Exception as fallback_err:
             logger.error(f"[AnalystAgent] Chat fallback also failed: {fallback_err}.")
             return "I'm having trouble thinking right now. Could you rephrase your question?"
+
+async def explain_sql_query(sql: str) -> str:
+    """Explains a SQL query in plain English, adapting depth to query complexity."""
+    SYSTEM = """You are an expert Data Analyst explaining SQL queries to business users.
+
+RULES:
+- Explain in plain, clear English — no raw SQL terms like SELECT/FROM/WHERE unless you explain what they mean in plain English
+- Adapt your explanation length to query complexity:
+  • Simple query (1-2 clauses) → 2-3 sentences, concise
+  • Medium query (joins, filters, grouping) → 4-6 bullet points covering each logical step
+  • Complex query (subqueries, CTEs, multiple joins) → structured breakdown up to 8 lines
+- Use a friendly, clear tone suitable for a non-technical business user
+- Always state: what data is being fetched, from where, any filters/conditions applied, any aggregations or sorting
+- Format your output using short bullet points (•) for each logical step — do NOT write a long paragraph
+- Do NOT start with "This query..." — start directly with "• Fetches..." or similar
+- Do NOT repeat the SQL back"""
+    prompt = f"Explain this SQL query:\n\n{sql}"
+
+    try:
+        completion = await client.chat.completions.create(
+            model=settings.business_analyst_model,
+            messages=[
+                {"role": "system", "content": SYSTEM},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=600
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception as e:
+        logger.warning(f"[AnalystAgent] explain_sql Groq failed ({e}). Trying fallback...")
+        try:
+            return await github_chat_completion(
+                tier="heavy",
+                messages=[
+                    {"role": "system", "content": SYSTEM},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=400
+            )
+        except Exception:
+            return "Unable to explain this query at the moment."

@@ -181,7 +181,6 @@ export interface SchemaTable {
     columns: string;
 }
 
-/** Fetch current database schema */
 export async function fetchSchema(): Promise<{ tables: SchemaTable[] }> {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/schema`, {
         method: "GET",
@@ -191,4 +190,18 @@ export async function fetchSchema(): Promise<{ tables: SchemaTable[] }> {
         throw new Error("Failed to fetch schema");
     }
     return res.json();
+}
+
+/** Fetch an AI explanation of the given SQL query */
+export async function explainSqlApi(sql: string): Promise<string> {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/explain-sql`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sql }),
+    });
+    if (!res.ok) {
+        throw new Error("Failed to explain SQL");
+    }
+    const data = await res.json();
+    return data.explanation;
 }

@@ -273,17 +273,75 @@ async def generate_charts(
     if not rows or len(rows) == 0:
         return None
 
-    # Single-row result: just emit KPI cards, no charts needed
+    # ── Smart Zero / Null Result Guard ────────────────────────────────────────
+    # If the result is a single row and ALL numeric values are 0 or None,
+    # there is nothing meaningful to visualize — skip charts entirely.
     if len(rows) == 1:
-        kpis = []
-        for col, val in rows[0].items():
-            if isinstance(val, (int, float)):
-                kpis.append({
+        row = rows[0]
+        numeric_vals = [v for v in row.values() if isinstance(v, (int, float))]
+        all_zero_or_null = (
+            len(numeric_vals) == 0
+            or all(v == 0 or v is None for v in numeric_vals)
+        )
+        if all_zero_or_null:
+            logger.info("[VisualizerAgent] Single-row result with all zeros/nulls — skipping charts.")
+            return None
+
+        # Non-zero single-row result: KPI card + gauge per numeric value
+        charts = []
+        label_val = next(
+            (str(v) for v in row.values() if isinstance(v, str) and v.strip()),
+            None
+        )
+        for col, val in row.items():
+            if isinstance(val, (int, float)) and val != 0:
+                formatted = f"{val:,.2f}" if isinstance(val, float) else f"{val:,}"
+                charts.append({
                     "library": "kpi",
                     "title": col.replace("_", " ").title(),
-                    "config": {"value": val, "formatted_value": str(val), "trend_direction": "neutral"}
+                    "meta": None,
+                    "config": {
+                        "value": val,
+                        "formatted_value": formatted,
+                        "label": label_val or col.replace("_", " ").title(),
+                        "trend_direction": "neutral",
+                    }
                 })
-        return kpis if kpis else None
+                charts.append({
+                    "library": "plotly",
+                    "chart_type": "gauge",
+                    "title": f"{col.replace('_', ' ').title()} — {label_val or 'Result'}",
+                    "meta": None,
+                    "config": {
+                        "data": [{
+                            "type": "indicator",
+                            "mode": "gauge+number",
+                            "value": val,
+                            "title": {"text": label_val or col.replace("_", " ").title(), "font": {"size": 14}},
+                            "gauge": {
+                                "axis": {"range": [0, max(val * 1.5, 5)]},
+                                "bar": {"color": "#7C6FFF"},
+                                "steps": [
+                                    {"range": [0, val * 0.5], "color": "rgba(124,111,255,0.08)"},
+                                    {"range": [val * 0.5, val], "color": "rgba(124,111,255,0.20)"},
+                                ],
+                                "threshold": {
+                                    "line": {"color": "#00C9B1", "width": 3},
+                                    "thickness": 0.75,
+                                    "value": val
+                                }
+                            }
+                        }],
+                        "layout": {
+                            "paper_bgcolor": "rgba(0,0,0,0)",
+                            "plot_bgcolor": "rgba(0,0,0,0)",
+                            "font": {"family": "Inter, system-ui, sans-serif", "color": "#94a3b8"},
+                            "margin": {"l": 30, "r": 30, "t": 40, "b": 30},
+                        }
+                    }
+                })
+        return charts if charts else None
+
 
     sample_rows = rows[:50]
 

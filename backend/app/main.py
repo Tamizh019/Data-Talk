@@ -375,6 +375,42 @@ async def get_analytics():
         raise HTTPException(status_code=500, detail=f"Analytics generation failed: {str(e)}")
 
 
+from pydantic import BaseModel
+
+class ExplainSqlRequest(BaseModel):
+    sql: str
+
+@app.post("/api/explain-sql", tags=["analytics"])
+async def explain_sql_endpoint(payload: ExplainSqlRequest):
+    from app.agents.analyst_agent import explain_sql_query
+    explanation = await explain_sql_query(payload.sql)
+    return {"explanation": explanation}
+
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "data-talk-api"}
+    from app.config import get_settings
+    import urllib.parse
+    settings = get_settings()
+    
+    # Hide password from URL
+    redis_safe_url = "Not Configured"
+    if settings.redis_url:
+        parsed = urllib.parse.urlparse(settings.redis_url)
+        redis_safe_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+        
+    redis_status = "ok"
+    try:
+        from app.core.cache import _get_client
+        client = _get_client()
+        await client.ping()
+    except Exception as e:
+        redis_status = f"failed: {str(e)}"
+        
+    return {
+        "status": "ok", 
+        "service": "data-talk-api",
+        "redis_host": redis_safe_url,
+        "redis_connection": redis_status
+    }
+
